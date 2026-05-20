@@ -28,13 +28,20 @@ final sessionProvider = StateNotifierProvider<SessionController, Guest?>(
   (ref) => SessionController(ref.read(apiClientProvider)),
 );
 
-/// Open rooms; auto-disposes and refetches when invalidated.
-final roomListProvider = FutureProvider.autoDispose<List<RoomInfo>>((
-  ref,
-) async {
+/// Live wallet balance (`GET /me`). autoDispose so each return to the lobby
+/// refreshes after a match settles.
+final walletProvider = FutureProvider.autoDispose<int>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return 0;
+  final fresh = await ref.read(apiClientProvider).me(g.token);
+  return fresh.coins;
+});
+
+/// Server-defined bet-tier menu (`GET /tiers`).
+final tiersProvider = FutureProvider.autoDispose<List<int>>((ref) async {
   final g = ref.watch(sessionProvider);
   if (g == null) return const [];
-  return ref.read(apiClientProvider).listRooms(g.token);
+  return ref.read(apiClientProvider).tiers(g.token);
 });
 
 /// The room the player is currently in (null = in lobby).

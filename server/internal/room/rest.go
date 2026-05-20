@@ -18,10 +18,14 @@ func guestFromCtx(c *gin.Context) (session.Guest, bool) {
 	return g, ok
 }
 
-// RESTAdapter implements httpapi.RoomAPI over a Hub.
-type RESTAdapter struct{ hub *Hub }
+// RESTAdapter implements httpapi.RoomAPI over a Hub. It keeps a db handle
+// so coin-aware endpoints (QuickPlay) can validate without main passing it.
+type RESTAdapter struct {
+	hub *Hub
+	db  *db.DB
+}
 
-func NewRESTAdapter(h *Hub) *RESTAdapter { return &RESTAdapter{hub: h} }
+func NewRESTAdapter(h *Hub, d *db.DB) *RESTAdapter { return &RESTAdapter{hub: h, db: d} }
 
 // ListOpen GET /api/v1/rooms
 func (a *RESTAdapter) ListOpen(c *gin.Context) {
@@ -77,6 +81,84 @@ func (a *RESTAdapter) Join(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"id": r.ID})
+}
+
+// AllowedBets is the public tier ladder shown in the client lobby. Kept
+// server-side so the server is the source of truth for available stakes.
+var AllowedBets = []int{50, 100, 500, 1000, 5000}
+
+func isAllowedBet(b int) bool {
+	for _, v := range AllowedBets {
+		if v == b {
+			return true
+		}
+	}
+	return false
+}
+
+// QuickPlay POST /api/v1/quickplay  body {"bet": n}
+// Finds the nearest open room at that bet tier, or creates one. Validates
+// the player has enough coins to cover the stake.
+func (a *RESTAdapter) QuickPlay(c *gin.Context) {
+	g, ok := guestFromCtx(c)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+	var req struct {
+		Bet int `json:"bet"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if !isAllowedBet(req.Bet) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid bet tier",
+			"allowed": AllowedBets,
+		})
+		return
+	}
+	coins, err := a.db.Coins(c.Request.Context(), g.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "wallet lookup failed"})
+		return
+	}
+	if coins < int64(req.Bet) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "insufficient coins for this tier",
+			"coins": coins,
+			"need":  req.Bet,
+		})
+		return
+	}
+	r, err := a.hub.QuickJoin(c.Request.Context(), g.ID.String(), g.Name, req.Bet)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"room_id": r.ID, "bet": r.Bet})
+}
+
+// TiersHandler GET /api/v1/tiers — the bet-tier menu the lobby renders.
+func TiersHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"tiers": AllowedBets})
+	}
+}
+
+// MeHandler GET /api/v1/me — refresh the authenticated guest's wallet.
+func MeHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		coins, err := database.Coins(c.Request.Context(), g.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "wallet lookup failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"id": g.ID, "name": g.Name, "coins": coins})
+	}
 }
 
 // AddBot POST /api/v1/rooms/:id/bots  body {"count": n}

@@ -23,6 +23,7 @@ type RoomAPI interface {
 	Create(c *gin.Context)
 	Join(c *gin.Context)
 	AddBot(c *gin.Context)
+	QuickPlay(c *gin.Context)
 }
 
 // Server bundles handler dependencies.
@@ -31,6 +32,8 @@ type Server struct {
 	WS       WSHandler
 	Rooms    RoomAPI
 	History  gin.HandlerFunc
+	Me       gin.HandlerFunc // wallet refresh: GET /api/v1/me
+	Tiers    gin.HandlerFunc // bet-tier menu: GET /api/v1/tiers
 }
 
 const ctxGuestKey = "guest"
@@ -53,9 +56,16 @@ func (s *Server) Router() *gin.Engine {
 			auth.POST("/rooms", s.Rooms.Create)
 			auth.POST("/rooms/:id/join", s.Rooms.Join)
 			auth.POST("/rooms/:id/bots", s.Rooms.AddBot)
+			auth.POST("/quickplay", s.Rooms.QuickPlay)
 		}
 		if s.History != nil {
 			auth.GET("/matches/history", s.History)
+		}
+		if s.Me != nil {
+			auth.GET("/me", s.Me)
+		}
+		if s.Tiers != nil {
+			auth.GET("/tiers", s.Tiers)
 		}
 	}
 

@@ -47,8 +47,10 @@ func main() {
 	srv := &httpapi.Server{
 		Sessions: sessions,
 		WS:       wsHandler,
-		Rooms:    room.NewRESTAdapter(hub),
+		Rooms:    room.NewRESTAdapter(hub, database),
 		History:  room.HistoryHandler(database),
+		Me:       room.MeHandler(database),
+		Tiers:    room.TiersHandler(),
 	}
 
 	httpServer := &http.Server{

@@ -56,6 +56,52 @@ class ApiClient {
     );
   }
 
+  /// Refreshes the authenticated guest (used to surface the live coin balance
+  /// in the lobby after a settled match).
+  Future<Guest> me(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return Guest.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+  }
+
+  /// The server-defined ladder of bet tiers shown in the lobby.
+  Future<List<int>> tiers(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/tiers'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['tiers'] as List?) ?? const [])
+        .map((e) => (e as num).toInt())
+        .toList();
+  }
+
+  /// Quickplay: server finds the nearest open room at [bet] or creates one.
+  /// Throws [QuickplayException] if the wallet lacks coins or the tier is
+  /// invalid.
+  Future<String> quickplay(String token, int bet) async {
+    final r = await _c.post(
+      _u('/api/v1/quickplay'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'bet': bet}),
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw QuickplayException(
+        r.statusCode,
+        (j['error'] as String?) ?? 'quickplay failed',
+        coins: (j['coins'] as num?)?.toInt(),
+        need: (j['need'] as num?)?.toInt(),
+      );
+    }
+    return j['room_id'] as String;
+  }
+
   Future<void> addBots(String token, String roomId, int count) async {
     await _c.post(
       _u('/api/v1/rooms/$roomId/bots'),
@@ -113,4 +159,16 @@ class WsClient {
     disconnect();
     _controller.close();
   }
+}
+
+/// Quickplay failure with structured detail so the UI can show e.g.
+/// "ต้องการ 500 🪙 มี 320 🪙".
+class QuickplayException implements Exception {
+  QuickplayException(this.statusCode, this.message, {this.coins, this.need});
+  final int statusCode;
+  final String message;
+  final int? coins;
+  final int? need;
+  @override
+  String toString() => message;
 }

@@ -116,6 +116,43 @@ func (h *Hub) CreateRoom(ctx context.Context, hostGuest, hostName, name string, 
 	return r
 }
 
+// QuickJoin is the server-managed matchmaking entrypoint. It seats the guest
+// in the first open room matching the bet tier; if none exists, it creates
+// a new one for that tier. The room is opaque to the player — they only
+// chose a stake.
+func (h *Hub) QuickJoin(ctx context.Context, guestID, guestName string, bet int) (*Room, error) {
+	if bet <= 0 {
+		bet = 100
+	}
+	// Look for the first open room at this stake.
+	h.mu.RLock()
+	var pick *Room
+	for _, r := range h.rooms {
+		r.mu.Lock()
+		open := r.state == nil && r.Bet == bet && len(r.seats) < r.MaxPlayers
+		alreadySeated := false
+		for _, s := range r.seats {
+			if s.GuestID == guestID {
+				alreadySeated = true
+				break
+			}
+		}
+		r.mu.Unlock()
+		if open || alreadySeated {
+			pick = r
+			break
+		}
+	}
+	h.mu.RUnlock()
+	if pick == nil {
+		pick = h.CreateRoom(ctx, guestID, guestName, fmt.Sprintf("เดิมพัน %d", bet), 4, 0, bet)
+	}
+	if err := pick.Join(guestID, guestName); err != nil {
+		return nil, err
+	}
+	return pick, nil
+}
+
 // Get returns a live room by id.
 func (h *Hub) Get(id string) (*Room, bool) {
 	h.mu.RLock()

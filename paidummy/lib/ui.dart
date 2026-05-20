@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'game_table.dart';
 import 'models.dart';
+import 'network.dart';
 import 'providers.dart';
 
 class PaiDummyApp extends StatelessWidget {
@@ -123,79 +124,113 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+/// Lobby is now server-managed: no manual create, no room list. The player
+/// picks a bet tier; the server finds (or creates) the nearest open room.
+/// Tiers locked when the wallet is short — coin guard enforced server-side
+/// too, the UI just disables the card.
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
 
-  Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final ctrl = TextEditingController(text: 'Table');
-    final name = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('New room'),
-        content: TextField(controller: ctrl),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, ctrl.text),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-    if (name == null) return;
+  Future<void> _enterTier(BuildContext context, WidgetRef ref, int bet) async {
     final g = ref.read(sessionProvider)!;
-    final id = await ref.read(apiClientProvider).createRoom(g.token, name, 4);
-    ref.read(currentRoomProvider.notifier).state = id;
-  }
-
-  Future<void> _join(WidgetRef ref, String roomId) async {
-    final g = ref.read(sessionProvider)!;
-    await ref.read(apiClientProvider).joinRoom(g.token, roomId);
-    ref.read(currentRoomProvider.notifier).state = roomId;
+    try {
+      final roomID = await ref.read(apiClientProvider).quickplay(g.token, bet);
+      ref.read(currentRoomProvider.notifier).state = roomID;
+    } on QuickplayException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.coins != null && e.need != null
+                ? 'เงินไม่พอ — ต้องการ ${e.need} 🪙 มี ${e.coins} 🪙'
+                : e.message,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ผิดพลาด: $e')));
+    }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rooms = ref.watch(roomListProvider);
     final g = ref.watch(sessionProvider);
+    final wallet = ref.watch(walletProvider);
+    final tiers = ref.watch(tiersProvider);
+    final coins = wallet.value ?? g?.coins ?? 0;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Lobby — ${g?.name ?? ''}'),
-        actions: [
-          IconButton(
-            onPressed: () => ref.invalidate(roomListProvider),
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            onPressed: () => ref.read(sessionProvider.notifier).signOut(),
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _create(context, ref),
-        label: const Text('New room'),
-        icon: const Icon(Icons.add),
-      ),
-      body: rooms.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (list) => list.isEmpty
-            ? const Center(child: Text('No open rooms. Create one!'))
-            : ListView(
+      backgroundColor: const Color(0xFF1A3548),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // (1) Top bar — guest name + live wallet.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: Row(
                 children: [
-                  for (final r in list)
-                    ListTile(
-                      title: Text(r.name),
-                      subtitle: Text('${r.players}/${r.max} players'),
-                      trailing: const Icon(Icons.login),
-                      onTap: () => _join(ref, r.id),
+                  Expanded(
+                    child: Text(
+                      g?.name ?? '',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                  ),
+                  _WalletPill(
+                    coins: coins,
+                    loading: wallet.isLoading,
+                    onRefresh: () => ref.invalidate(walletProvider),
+                  ),
+                  IconButton(
+                    onPressed: () =>
+                        ref.read(sessionProvider.notifier).signOut(),
+                    icon: const Icon(Icons.logout, color: Colors.white70),
+                    tooltip: 'ออก',
+                  ),
                 ],
               ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'เลือกห้องเดิมพัน',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ),
+            ),
+            // (2)+(3) Bet-tier list. Tapping calls /quickplay; server picks or
+            // creates a room of that tier.
+            Expanded(
+              child: tiers.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(
+                  child: Text(
+                    'โหลดรายการเดิมพันไม่ได้: $e',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+                data: (list) => ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: list.length,
+                  separatorBuilder: (_, i) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => _TierCard(
+                    bet: list[i],
+                    coins: coins,
+                    onEnter: () => _enterTier(context, ref, list[i]),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1172,6 +1207,217 @@ class _TurnTimerChipState extends State<_TurnTimerChip> {
           fontSize: 14,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// Live wallet pill: 🪙 + current coin balance + tap to refresh.
+class _WalletPill extends StatelessWidget {
+  const _WalletPill({
+    required this.coins,
+    required this.loading,
+    required this.onRefresh,
+  });
+  final int coins;
+  final bool loading;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.35),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onRefresh,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🪙 ', style: TextStyle(fontSize: 18)),
+              Text(
+                '$coins',
+                style: const TextStyle(
+                  color: Color(0xFFFFD24A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFFFD24A),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bet-tier card: a coloured panel showing the stake. Locked (greyed +
+/// padlock) when the wallet can't afford it; otherwise tap to enter.
+class _TierCard extends StatelessWidget {
+  const _TierCard({
+    required this.bet,
+    required this.coins,
+    required this.onEnter,
+  });
+  final int bet;
+  final int coins;
+  final VoidCallback onEnter;
+
+  // Lock = wallet < stake (server also enforces; client just disables).
+  bool get _canAfford => coins >= bet;
+
+  /// Tier colour scaling roughly with the stake.
+  List<Color> get _palette {
+    if (bet <= 50) return const [Color(0xFF2D8A6E), Color(0xFF1E6E54)];
+    if (bet <= 100) return const [Color(0xFF2D6E9E), Color(0xFF1E4D70)];
+    if (bet <= 500) return const [Color(0xFFB8804A), Color(0xFF8A5A2F)];
+    if (bet <= 1000) return const [Color(0xFFE060A8), Color(0xFFA42B72)];
+    return const [Color(0xFFE8902E), Color(0xFFC0392B)];
+  }
+
+  String get _tierLabel {
+    if (bet <= 50) return 'ห้องมือใหม่';
+    if (bet <= 100) return 'ห้องเริ่มต้น';
+    if (bet <= 500) return 'ห้องกลาง';
+    if (bet <= 1000) return 'ห้องไฮโรลเลอร์';
+    return 'ห้อง VIP';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: _canAfford ? 1 : 0.55,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _canAfford ? onEnter : null,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: _palette,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+                width: 1.5,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _tierLabel,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '$bet',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '🪙 ต่อมือ',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: _canAfford
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'เข้าเล่น',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ],
+                        )
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock, color: Colors.white, size: 16),
+                            SizedBox(width: 4),
+                            Text(
+                              'เงินไม่พอ',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

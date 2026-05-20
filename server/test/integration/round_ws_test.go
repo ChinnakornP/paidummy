@@ -70,7 +70,7 @@ func TestFullRoundOverWebSocket(t *testing.T) {
 	hub := room.NewHub(database, rds)
 	srv := &httpapi.Server{
 		Sessions: sessions,
-		Rooms:    room.NewRESTAdapter(hub),
+		Rooms:    room.NewRESTAdapter(hub, database),
 		History:  room.HistoryHandler(database),
 		WS:       ws.NewHandler(hub, sessions),
 	}
@@ -270,7 +270,7 @@ func TestBotPlaysRound(t *testing.T) {
 	hub := room.NewHub(database, rds)
 	srv := &httpapi.Server{
 		Sessions: sessions,
-		Rooms:    room.NewRESTAdapter(hub),
+		Rooms:    room.NewRESTAdapter(hub, database),
 		History:  room.HistoryHandler(database),
 		WS:       ws.NewHandler(hub, sessions),
 	}

@@ -50,7 +50,7 @@ func main() {
 		Rooms:    room.NewRESTAdapter(hub, database),
 		History:  room.HistoryHandler(database),
 		Me:       room.MeHandler(database),
-		Tiers:    room.TiersHandler(),
+		Tiers:    room.TiersHandler(hub),
 		Packages:    room.PackagesHandler(),
 		Purchase:    room.PurchaseHandler(database),
 		MyHistory:   room.CoinHistoryHandler(database),

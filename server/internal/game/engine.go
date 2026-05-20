@@ -128,6 +128,42 @@ func (Engine) applyDraw(gs *GameState, p int, a Action) ([]Event, error) {
 			}
 		}
 		target := gs.DiscardPile[targetIdx]
+
+		// ฝากดัมมี่ — alternate pickup path: the target lays off onto an
+		// existing table meld instead of forming a new meld. Triggered when
+		// the client provides MeldID. Above-target cards still drop into
+		// the hand and the ทิ้งดัมมี่ penalty still applies.
+		if a.MeldID != "" {
+			mi := gs.findMeld(a.MeldID)
+			if mi == -1 {
+				return nil, ErrNoSuchMeld
+			}
+			updated, err := canLayOff(gs.Melds[mi], []Card{target}, gs.RuleSet)
+			if err != nil {
+				return nil, ErrPickupNeedsMeld
+			}
+			above := gs.DiscardPile[targetIdx+1:]
+			extras := append([]Card(nil), above...)
+			if targetIdx < len(gs.DiscardedBy) {
+				if dumper := gs.DiscardedBy[targetIdx]; dumper >= 0 && dumper != p {
+					gs.ensureDumpPenaltiesLen()
+					gs.DumpPenalties[dumper] += gs.RuleSet.DumpPenalty
+				}
+			}
+			gs.DiscardPile = gs.DiscardPile[:targetIdx]
+			if targetIdx < len(gs.DiscardedBy) {
+				gs.DiscardedBy = gs.DiscardedBy[:targetIdx]
+			}
+			gs.Players[p].Hand = append(gs.Players[p].Hand, extras...)
+			gs.Melds[mi] = updated
+			gs.absorbHead([]Card{target}, gs.Melds[mi].Owner)
+			gs.Phase = PhaseMeld
+			return []Event{
+				{Type: EvtDrewDiscard, Player: p, Card: target},
+				{Type: EvtLaidOff, Player: p, Cards: []Card{target}, MeldID: a.MeldID},
+			}, nil
+		}
+
 		if len(a.Cards) < gs.RuleSet.MinMeldLen-1 {
 			return nil, ErrPickupNeedsMeld
 		}

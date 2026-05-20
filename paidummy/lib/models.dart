@@ -217,6 +217,26 @@ class PlayerPublic {
   );
 }
 
+/// One row in the lobby's bet-tier menu. `players` is a live snapshot of
+/// seats currently in open rooms at this stake; `rooms` is how many such
+/// rooms are in the lobby phase right now.
+class TierInfo {
+  const TierInfo({
+    required this.bet,
+    required this.players,
+    required this.rooms,
+  });
+  final int bet;
+  final int players;
+  final int rooms;
+
+  factory TierInfo.fromJson(Map<String, dynamic> j) => TierInfo(
+    bet: (j['bet'] as num?)?.toInt() ?? 0,
+    players: (j['players'] as num?)?.toInt() ?? 0,
+    rooms: (j['rooms'] as num?)?.toInt() ?? 0,
+  );
+}
+
 /// Transient penalty notification surfaced to the affected player.
 /// `reason` is "full" (ทิ้งเต็ม — discarder pays) or "dummy" (ทิ้งดัมมี่ —
 /// the previous discarder pays after an opponent picks it up).

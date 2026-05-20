@@ -871,8 +871,9 @@ func decodeAction(typ string, data json.RawMessage) (game.Action, error) {
 		return game.Action{Type: game.ActDrawDeck}, nil
 	case "draw_discard":
 		var d struct {
-			Card  string   `json:"card"` // optional: target card in the pile
-			Cards []string `json:"cards"`
+			Card   string   `json:"card"` // optional: target card in the pile
+			Cards  []string `json:"cards"`
+			MeldID string   `json:"meld_id"` // ฝากดัมมี่: layoff target meld
 		}
 		_ = json.Unmarshal(data, &d)
 		cs, err := parseCards(d.Cards)
@@ -884,7 +885,12 @@ func decodeAction(typ string, data json.RawMessage) (game.Action, error) {
 			}
 			target = tc
 		}
-		return game.Action{Type: game.ActDrawDiscard, Cards: cs, Card: target}, err
+		return game.Action{
+			Type:   game.ActDrawDiscard,
+			Cards:  cs,
+			Card:   target,
+			MeldID: d.MeldID,
+		}, err
 	case "meld":
 		var d struct {
 			Cards []string `json:"cards"`

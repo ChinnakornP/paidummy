@@ -66,16 +66,28 @@ class ApiClient {
     return Guest.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
   }
 
-  /// The server-defined ladder of bet tiers shown in the lobby.
-  Future<List<int>> tiers(String token) async {
+  /// The server-defined ladder of bet tiers shown in the lobby. Each entry
+  /// carries a live snapshot of how many players + rooms are at that stake.
+  ///
+  /// The parser is deliberately tolerant of the legacy `[int, int, ...]`
+  /// shape too — an older server binary returns a list of raw stake ints,
+  /// and we'd rather render the menu with zeroed-out counts than crash with
+  /// a type-cast error.
+  Future<List<TierInfo>> tiers(String token) async {
     final r = await _c.get(
       _u('/api/v1/tiers'),
       headers: {'Authorization': 'Bearer $token'},
     );
     final j = jsonDecode(r.body) as Map<String, dynamic>;
-    return ((j['tiers'] as List?) ?? const [])
-        .map((e) => (e as num).toInt())
-        .toList();
+    return ((j['tiers'] as List?) ?? const []).map((e) {
+      if (e is Map) {
+        return TierInfo.fromJson(e.cast<String, dynamic>());
+      }
+      if (e is num) {
+        return TierInfo(bet: e.toInt(), players: 0, rooms: 0);
+      }
+      return const TierInfo(bet: 0, players: 0, rooms: 0);
+    }).toList();
   }
 
   /// Quickplay: server finds the nearest open room at [bet] or creates one.

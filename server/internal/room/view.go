@@ -117,11 +117,15 @@ func (r *Room) viewFor(viewer int) stateView {
 	return v
 }
 
-// roundResult builds the round_result payload. Caller holds r.mu.
+// roundResult builds the round_result payload. Caller holds r.mu. The round
+// is over here, so every player's hand + meld set is revealed alongside the
+// score breakdown — the client renders the rich end-of-round dialog from
+// this single payload.
 func roundResult(r *Room, sb []game.ScoreBreakdown) map[string]any {
+	gs := r.state
 	rows := make([]map[string]any, 0, len(sb))
 	for i, s := range sb {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"seat":             i,
 			"name":             r.seats[i].Name,
 			"total":            s.Total,
@@ -130,12 +134,29 @@ func roundResult(r *Room, sb []game.ScoreBreakdown) map[string]any {
 			"knock_bonus":      s.KnockBonus,
 			"knock_card_bonus": s.KnockCardBonus,
 			"hand_penalty":     s.HandPenalty,
-		})
+			"dump_penalty":     s.DumpPenalty,
+		}
+		if gs != nil && i < len(gs.Players) {
+			row["hand"] = cardStrings(gs.Players[i].Hand)
+			ownedMelds := make([]map[string]any, 0)
+			for _, m := range gs.Melds {
+				if m.Owner != i {
+					continue
+				}
+				ownedMelds = append(ownedMelds, map[string]any{
+					"id":    m.ID,
+					"kind":  m.Kind.String(),
+					"cards": cardStrings(m.Cards),
+				})
+			}
+			row["melds"] = ownedMelds
+		}
+		rows = append(rows, row)
 	}
 	reason, knocker := "", -1
-	if r.state != nil {
-		reason = r.state.EndReason
-		knocker = r.state.Knocker
+	if gs != nil {
+		reason = gs.EndReason
+		knocker = gs.Knocker
 	}
 	return map[string]any{"reason": reason, "knocker": knocker, "scores": rows}
 }

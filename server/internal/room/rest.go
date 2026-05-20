@@ -138,10 +138,46 @@ func (a *RESTAdapter) QuickPlay(c *gin.Context) {
 }
 
 // TiersHandler GET /api/v1/tiers — the bet-tier menu the lobby renders.
-func TiersHandler() gin.HandlerFunc {
+// Returns each allowed stake plus a live snapshot of how many players are
+// currently seated in open rooms at that stake. Client uses the count to
+// surface "ผู้เล่น N คน" on each tier card.
+func TiersHandler(h *Hub) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"tiers": AllowedBets})
+		counts := tierOccupancy(h)
+		out := make([]gin.H, 0, len(AllowedBets))
+		for _, bet := range AllowedBets {
+			s := counts[bet]
+			out = append(out, gin.H{
+				"bet":     bet,
+				"players": s.players,
+				"rooms":   s.rooms,
+			})
+		}
+		c.JSON(http.StatusOK, gin.H{"tiers": out})
 	}
+}
+
+type tierStat struct{ players, rooms int }
+
+// tierOccupancy walks every open room once and tallies seats by stake.
+// Includes rooms still in the pre-start lobby — that's exactly where new
+// players land via QuickPlay.
+func tierOccupancy(h *Hub) map[int]tierStat {
+	out := map[int]tierStat{}
+	if h == nil {
+		return out
+	}
+	for _, r := range h.OpenRooms() {
+		r.mu.Lock()
+		seats := len(r.seats)
+		bet := r.Bet
+		r.mu.Unlock()
+		s := out[bet]
+		s.players += seats
+		s.rooms++
+		out[bet] = s
+	}
+	return out
 }
 
 // PackagesHandler GET /api/v1/shop/packages — the coin-package menu.

@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 
 import 'package:flame/game.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -455,97 +456,293 @@ class LobbyScreen extends ConsumerWidget {
     final rank = liveGuest?.rank;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A3548),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // (1) Top bar — guest name + rank + live wallet + actions.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          g?.name ?? '',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+      // Felt + vignette background matches the home screen so home → lobby
+      // feels like one continuous game world.
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _FeltBackground()),
+          // Decorative suit motifs anchor the screen visually without
+          // competing with the tier list.
+          const Positioned(
+            right: -10,
+            top: 100,
+            child: _FloatingSuit(glyph: '♦', color: Color(0x22D63333), size: 140),
+          ),
+          const Positioned(
+            left: -16,
+            bottom: 40,
+            child: _FloatingSuit(glyph: '♣', color: Color(0x221A1A1A), size: 160),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                _LobbyTopBar(
+                  name: g?.name ?? '',
+                  rank: rank,
+                  coins: coins,
+                  walletLoading: me.isLoading,
+                  onWalletTap: () => ref.invalidate(meProvider),
+                  onHistory: () => _openHistory(context),
+                  onShop: () => _openShop(context, ref),
+                  onSignOut: () =>
+                      ref.read(sessionProvider.notifier).signOut(),
+                ),
+                const _LobbySectionHeader(),
+                Expanded(
+                  child: tiers.when(
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(
+                        valueColor:
+                            AlwaysStoppedAnimation(Color(0xFFFFD24A)),
+                      ),
+                    ),
+                    error: (e, _) => Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'โหลดรายการเดิมพันไม่ได้\n$e',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white70),
                         ),
-                        if (rank != null) _RankPill(rank: rank),
-                      ],
+                      ),
+                    ),
+                    data: (list) => ScrollConfiguration(
+                      // BouncingScrollPhysics gives a proper momentum fling
+                      // on every platform; the multi-device behavior lets
+                      // the user drag with a mouse / trackpad on web and
+                      // desktop too (default would be touch-only).
+                      behavior: const _LobbyScrollBehavior(),
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                        itemCount: list.length,
+                        separatorBuilder: (_, i) => const SizedBox(width: 14),
+                        itemBuilder: (_, i) => _TierCard(
+                          tier: list[i],
+                          coins: coins,
+                          onEnter: () =>
+                              _enterTier(context, ref, list[i].bet),
+                        ),
+                      ),
                     ),
                   ),
-                  _WalletPill(
-                    coins: coins,
-                    loading: me.isLoading,
-                    onRefresh: () => ref.invalidate(meProvider),
-                  ),
-                  const SizedBox(width: 6),
-                  // History sheet.
-                  IconButton(
-                    onPressed: () => _openHistory(context),
-                    icon: const Text('📜', style: TextStyle(fontSize: 22)),
-                    tooltip: 'ประวัติ',
-                  ),
-                  // Open the coin shop sheet.
-                  IconButton(
-                    onPressed: () => _openShop(context, ref),
-                    icon: const Text('🛒', style: TextStyle(fontSize: 22)),
-                    tooltip: 'ร้านค้า',
-                  ),
-                  IconButton(
-                    onPressed: () =>
-                        ref.read(sessionProvider.notifier).signOut(),
-                    icon: const Icon(Icons.logout, color: Colors.white70),
-                    tooltip: 'ออก',
-                  ),
-                ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Top bar for the lobby: avatar + identity column, wallet, quick actions.
+/// Sits over the felt background, so colours come from the global gold
+/// accent + black-translucent panels rather than a flat-coloured bar.
+class _LobbyTopBar extends StatelessWidget {
+  const _LobbyTopBar({
+    required this.name,
+    required this.rank,
+    required this.coins,
+    required this.walletLoading,
+    required this.onWalletTap,
+    required this.onHistory,
+    required this.onShop,
+    required this.onSignOut,
+  });
+  final String name;
+  final Rank? rank;
+  final int coins;
+  final bool walletLoading;
+  final VoidCallback onWalletTap;
+  final VoidCallback onHistory;
+  final VoidCallback onShop;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 8),
+      child: Row(
+        children: [
+          // Avatar circle — same gold palette as the in-game self seat.
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFE7A6), Color(0xFFC89A48)],
+              ),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.45),
+                width: 2,
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'เลือกห้องเดิมพัน',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
+            alignment: Alignment.center,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: Color(0xFF3D2900),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
               ),
             ),
-            // (2)+(3) Bet-tier list. Tapping calls /quickplay; server picks or
-            // creates a room of that tier.
-            Expanded(
-              child: tiers.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Text(
-                    'โหลดรายการเดิมพันไม่ได้: $e',
-                    style: const TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    shadows: [
+                      Shadow(color: Colors.black54, blurRadius: 4),
+                    ],
                   ),
                 ),
-                data: (list) => ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: list.length,
-                  separatorBuilder: (_, i) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _TierCard(
-                    bet: list[i],
-                    coins: coins,
-                    onEnter: () => _enterTier(context, ref, list[i]),
-                  ),
-                ),
-              ),
+                if (rank != null) _RankPill(rank: rank!),
+              ],
             ),
-          ],
+          ),
+          _WalletPill(
+            coins: coins,
+            loading: walletLoading,
+            onRefresh: onWalletTap,
+          ),
+          const SizedBox(width: 2),
+          _LobbyIconButton(
+            emoji: '📜',
+            tooltip: 'ประวัติ',
+            onTap: onHistory,
+          ),
+          _LobbyIconButton(
+            emoji: '🛒',
+            tooltip: 'ร้านค้า',
+            onTap: onShop,
+          ),
+          IconButton(
+            onPressed: onSignOut,
+            icon: const Icon(Icons.logout, color: Colors.white70, size: 20),
+            tooltip: 'ออก',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LobbyIconButton extends StatelessWidget {
+  const _LobbyIconButton({
+    required this.emoji,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final String emoji;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.3),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 38,
+            height: 38,
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Section header for the tier list — gold accent bar + Thai+English labels.
+class _LobbySectionHeader extends StatelessWidget {
+  const _LobbySectionHeader();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 4,
+            height: 28,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFFFD24A), Color(0xFFC89A48)],
+              ),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text(
+                  'เลือกห้องเดิมพัน',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 1),
+                Text(
+                  'ระบบจะหาห้องว่างที่ใกล้ที่สุดให้อัตโนมัติ',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Enables mouse + trackpad drag-to-scroll in addition to touch + stylus so
+/// the horizontal tier list flings smoothly on web and desktop too. The
+/// default `MaterialScrollBehavior` only treats touch as a drag device,
+/// which is why a mouse-down/up on the lobby would "stick" without inertia.
+class _LobbyScrollBehavior extends MaterialScrollBehavior {
+  const _LobbyScrollBehavior();
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.invertedStylus,
+  };
 }
 
 class GameScreen extends ConsumerStatefulWidget {
@@ -762,13 +959,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               child: _CenterPile(view: view),
             ),
 
-            // Tappable meld overlay above the felt. Selecting a meld switches
-            // the "ลง" action button into "ฝาก" mode.
+            // Four per-player meld panels, one per quadrant of the felt:
+            //   A = first opponent  (top-left)
+            //   B = second opponent (top-right, grows from screen-centre)
+            //   C = self            (bottom-left)
+            //   D = third opponent  (bottom-right, grows from screen-centre)
+            // Tapping any meld still switches the "ลง" button into "ฝาก".
             if (view.melds.isNotEmpty)
-              Align(
-                alignment: const Alignment(0, -0.42),
-                child: _MeldsOverlay(
-                  melds: view.melds,
+              Positioned.fill(
+                child: _QuadrantMeldsLayer(
+                  view: view,
                   selectedId: ref.watch(selectedMeldProvider),
                   onTap: (id) {
                     final cur = ref.read(selectedMeldProvider);
@@ -1078,13 +1278,19 @@ class _HandAndControls extends ConsumerWidget {
       // เก็บ needs at least one pile card (target) + enough supporting cards
       // to form a 3-card meld with the target.
       final canPickup = target != null && supportingCards.length >= 2;
+      // ฝากดัมมี่: pick a meld + (optionally) a deeper pile card to layoff
+      // its target onto that meld. If no pile card is selected, the top of
+      // the discard pile is the target by default.
+      final drawMeld = ref.watch(selectedMeldProvider);
+      final hasPile = view.discardPile.isNotEmpty;
+      final canDummyLayoff = drawMeld != null && hasPile;
       return [
         _GameButton(
           icon: Icons.style,
           label: 'จั่วไพ่',
           colors: const [Color(0xFFF49A3A), Color(0xFFC66A18)],
           onTap: ctrl.drawDeck,
-          highlight: true,
+          highlight: !canDummyLayoff,
         ),
         _GameButton(
           icon: Icons.south,
@@ -1101,6 +1307,28 @@ class _HandAndControls extends ConsumerWidget {
                   ctrl.clearSelection();
                 }
               : null,
+        ),
+        // ฝากดัมมี่ — appears the moment the player taps a table meld during
+        // their draw phase. Picks up the chosen discard target (or top) and
+        // lays it directly onto that meld; no new meld required.
+        _GameButton(
+          icon: Icons.add_to_photos,
+          label: 'ฝากดัมมี่',
+          colors: const [Color(0xFF6DC94A), Color(0xFF3E8A25)],
+          onTap: canDummyLayoff
+              ? () {
+                  ctrl.drawDiscard(
+                    const [],
+                    targetCard: target,
+                    meldId: drawMeld,
+                  );
+                  ref.read(selectedDiscardCardsProvider.notifier).state =
+                      const {};
+                  ref.read(selectedMeldProvider.notifier).state = null;
+                  ctrl.clearSelection();
+                }
+              : null,
+          highlight: canDummyLayoff,
         ),
       ];
     }
@@ -1397,52 +1625,337 @@ class _ResultBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = (result['rows'] ?? result['scores']) as List? ?? const [];
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (isMatch && result['winner'] != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              'ผู้ชนะ: ${result['winner']}  (เดิมพัน ${result['bet'] ?? 0})',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        if (!isMatch && result['reason'] != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              result['reason'] == 'knock' ? 'จบด้วยการน็อค' : 'ไพ่กองหมด',
-            ),
-          ),
-        for (final r in rows.cast<Map<String, dynamic>>())
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+    final rows = ((result['rows'] ?? result['scores']) as List? ?? const [])
+        .cast<Map<String, dynamic>>();
+    final reason = result['reason'] as String? ?? '';
+    final knocker = (result['knocker'] as num?)?.toInt() ?? -1;
+    String? subtitle;
+    if (isMatch && result['winner'] != null) {
+      subtitle = 'ผู้ชนะแมตช์: ${result['winner']}  '
+          '(เดิมพัน ${result['bet'] ?? 0})';
+    } else {
+      if (reason == 'knock') {
+        final name =
+            (knocker >= 0 && knocker < rows.length)
+                ? rows[knocker]['name']
+                : null;
+        subtitle = name != null ? 'น็อคโดย $name' : 'จบด้วยการน็อค';
+      } else if (reason == 'deck_exhaust') {
+        subtitle = 'ไพ่กองหมด';
+      }
+    }
+
+    // Landscape phones get four columns side-by-side; if it overflows we
+    // fall back to a vertical scroll. ConstrainedBox keeps the dialog from
+    // hugging the screen edge to edge.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 720, maxHeight: 460),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtitle != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                if (r['winner'] == true) const Text('🏆 '),
-                Expanded(child: Text('${r['name']}')),
-                Text('คะแนน ${r['score'] ?? r['total'] ?? 0}'),
-                if (r['coin_delta'] != null) ...[
-                  const SizedBox(width: 10),
+                for (final r in rows) _PlayerSummary(row: r),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-player end-of-round panel: melds laid, remaining hand cards, full
+/// score breakdown line items, and the coin/score delta in green / red.
+class _PlayerSummary extends StatelessWidget {
+  const _PlayerSummary({required this.row});
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = row['name'] as String? ?? '';
+    final total = (row['total'] as num?)?.toInt() ?? 0;
+    final coinDelta = (row['coin_delta'] as num?)?.toInt();
+    final isWinner = row['winner'] == true;
+    final melds = ((row['melds'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final hand = ((row['hand'] as List?) ?? const [])
+        .map((e) => e as String)
+        .toList();
+
+    final breakdown = <_LineItem>[
+      _LineItem('แต้มไพ่ที่ลง', (row['meld_points'] as num?)?.toInt() ?? 0),
+      if (((row['head_bonus'] as num?)?.toInt() ?? 0) != 0)
+        _LineItem('โบนัสหัว', (row['head_bonus'] as num?)!.toInt()),
+      if (((row['knock_bonus'] as num?)?.toInt() ?? 0) != 0)
+        _LineItem('โบนัสน็อค', (row['knock_bonus'] as num?)!.toInt()),
+      if (((row['knock_card_bonus'] as num?)?.toInt() ?? 0) != 0)
+        _LineItem('ไพ่น็อค', (row['knock_card_bonus'] as num?)!.toInt()),
+      if (((row['hand_penalty'] as num?)?.toInt() ?? 0) != 0)
+        _LineItem('ค่าไพ่ในมือ', (row['hand_penalty'] as num?)!.toInt()),
+      if (((row['dump_penalty'] as num?)?.toInt() ?? 0) != 0)
+        _LineItem(
+          'ทิ้งเต็ม / ดัมมี่',
+          (row['dump_penalty'] as num?)!.toInt(),
+        ),
+    ];
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F2E22).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isWinner
+              ? const Color(0xFFFFD24A)
+              : Colors.white.withValues(alpha: 0.12),
+          width: isWinner ? 1.6 : 1,
+        ),
+        boxShadow: isWinner
+            ? const [BoxShadow(color: Color(0x66FFD24A), blurRadius: 14)]
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (isWinner)
+                const Padding(
+                  padding: EdgeInsets.only(right: 4),
+                  child: Text('🏆', style: TextStyle(fontSize: 16)),
+                ),
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Text(
+                '$total',
+                style: TextStyle(
+                  color: total >= 0
+                      ? const Color(0xFF7FE08A)
+                      : const Color(0xFFFF8A8A),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const _SummaryLabel('ไพ่ที่ลง'),
+          if (melds.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 2, bottom: 6),
+              child: Text(
+                '—',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 6),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final m in melds)
+                    _SummaryMeld(
+                      cards:
+                          ((m['cards'] as List?) ?? const [])
+                              .map((e) => e as String)
+                              .toList(),
+                    ),
+                ],
+              ),
+            ),
+          const _SummaryLabel('ไพ่ที่เหลือในมือ'),
+          if (hand.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 2, bottom: 6),
+              child: Text(
+                '—',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 6),
+              child: Wrap(
+                spacing: 3,
+                runSpacing: 3,
+                children: [for (final c in hand) _SummaryCard(label: c)],
+              ),
+            ),
+          const _SummaryLabel('สรุปคะแนน'),
+          const SizedBox(height: 2),
+          for (final item in breakdown)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                   Text(
-                    '${(r['coin_delta'] as num) >= 0 ? '+' : ''}'
-                    '${r['coin_delta']} 🪙',
+                    '${item.value >= 0 ? '+' : ''}${item.value}',
                     style: TextStyle(
-                      color: (r['coin_delta'] as num) >= 0
-                          ? const Color(0xFF1B7F3B)
-                          : const Color(0xFFC0392B),
-                      fontWeight: FontWeight.bold,
+                      color: item.value >= 0
+                          ? const Color(0xFFB6E8B6)
+                          : const Color(0xFFFFB4B4),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
+              ),
+            ),
+          if (coinDelta != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'เหรียญ',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${coinDelta >= 0 ? '+' : ''}$coinDelta 🪙',
+                  style: TextStyle(
+                    color: coinDelta >= 0
+                        ? const Color(0xFFFFD24A)
+                        : const Color(0xFFFF8A8A),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
               ],
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LineItem {
+  const _LineItem(this.label, this.value);
+  final String label;
+  final int value;
+}
+
+class _SummaryLabel extends StatelessWidget {
+  const _SummaryLabel(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      color: Color(0xFFFFE7A6),
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.4,
+    ),
+  );
+}
+
+/// Small face-up card used inside the result dialog (hand + melds).
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.label});
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    if (label.length < 2) return const SizedBox(width: 22, height: 30);
+    final rank = label[0] == 'T' ? '10' : label[0];
+    final suit = label[1];
+    final isRed = suit == 'H' || suit == 'D';
+    final color = isRed ? const Color(0xFFD63333) : const Color(0xFF1A1A1A);
+    final glyph = switch (suit) {
+      'H' => '♥',
+      'D' => '♦',
+      'S' => '♠',
+      _ => '♣',
+    };
+    return Container(
+      width: 22,
+      height: 30,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: const Color(0xFFCCCCCC)),
+      ),
+      alignment: Alignment.center,
+      child: FittedBox(
+        child: Text(
+          '$rank$glyph',
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
           ),
-      ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact horizontal stack of mini cards representing one laid meld.
+class _SummaryMeld extends StatelessWidget {
+  const _SummaryMeld({required this.cards});
+  final List<String> cards;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final c in cards)
+            Padding(
+              padding: const EdgeInsets.only(right: 2),
+              child: _SummaryCard(label: c),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1723,158 +2236,380 @@ class _WalletPill extends StatelessWidget {
   }
 }
 
-/// Bet-tier card: a coloured panel showing the stake. Locked (greyed +
-/// padlock) when the wallet can't afford it; otherwise tap to enter.
+/// Bet-tier card — vertical/portrait. Sits in a horizontally scrolling row.
+/// Top: tier label badge.  Middle: giant stake, "🪙 ต่อมือ", live player
+/// count + room count.  Bottom: full-width "เข้าเล่น" CTA, or a padlock chip
+/// if the wallet can't afford the stake.
 class _TierCard extends StatelessWidget {
   const _TierCard({
-    required this.bet,
+    required this.tier,
     required this.coins,
     required this.onEnter,
   });
-  final int bet;
+  final TierInfo tier;
   final int coins;
   final VoidCallback onEnter;
 
+  int get _bet => tier.bet;
   // Lock = wallet < stake (server also enforces; client just disables).
-  bool get _canAfford => coins >= bet;
+  bool get _canAfford => coins >= _bet;
 
-  /// Tier colour scaling roughly with the stake.
-  List<Color> get _palette {
-    if (bet <= 50) return const [Color(0xFF2D8A6E), Color(0xFF1E6E54)];
-    if (bet <= 100) return const [Color(0xFF2D6E9E), Color(0xFF1E4D70)];
-    if (bet <= 500) return const [Color(0xFFB8804A), Color(0xFF8A5A2F)];
-    if (bet <= 1000) return const [Color(0xFFE060A8), Color(0xFFA42B72)];
-    return const [Color(0xFFE8902E), Color(0xFFC0392B)];
-  }
-
-  String get _tierLabel {
-    if (bet <= 50) return 'ห้องมือใหม่';
-    if (bet <= 100) return 'ห้องเริ่มต้น';
-    if (bet <= 500) return 'ห้องกลาง';
-    if (bet <= 1000) return 'ห้องไฮโรลเลอร์';
-    return 'ห้อง VIP';
+  _TierVisual get _v {
+    final bet = _bet;
+    if (bet <= 50) {
+      return const _TierVisual(
+        label: 'ห้องมือใหม่',
+        sub: 'เริ่มต้นง่ายๆ',
+        bg: [Color(0xFF2D8A6E), Color(0xFF1E6E54)],
+        accent: Color(0xFF8AE6B5),
+        suit: '♣',
+        suitColor: Color(0x331A1A1A),
+      );
+    }
+    if (bet <= 100) {
+      return const _TierVisual(
+        label: 'ห้องเริ่มต้น',
+        sub: 'เดิมพันเบาๆ',
+        bg: [Color(0xFF2D6E9E), Color(0xFF1E4D70)],
+        accent: Color(0xFF7FCFFF),
+        suit: '♦',
+        suitColor: Color(0x33D63333),
+      );
+    }
+    if (bet <= 500) {
+      return const _TierVisual(
+        label: 'ห้องกลาง',
+        sub: 'พอลุ้นได้',
+        bg: [Color(0xFFB8804A), Color(0xFF8A5A2F)],
+        accent: Color(0xFFFFE0A6),
+        suit: '♠',
+        suitColor: Color(0x331A1A1A),
+      );
+    }
+    if (bet <= 1000) {
+      return const _TierVisual(
+        label: 'ห้องไฮโรลเลอร์',
+        sub: 'แต้มสูง ใจถึง',
+        bg: [Color(0xFFA42B72), Color(0xFF6E1A4D)],
+        accent: Color(0xFFFFB4DA),
+        suit: '♥',
+        suitColor: Color(0x33D63333),
+      );
+    }
+    return const _TierVisual(
+      label: 'ห้อง VIP',
+      sub: 'จัดเต็มทุกตา',
+      bg: [Color(0xFFE8902E), Color(0xFFC0392B)],
+      accent: Color(0xFFFFE0A6),
+      suit: '♠',
+      suitColor: Color(0x331A1A1A),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: _canAfford ? 1 : 0.55,
+    final v = _v;
+    // Rough max pot ≈ stake × 4 (max table size); server payout is exact.
+    final pot = _bet * 4;
+    return SizedBox(
+      width: 200, // portrait card; height fills the parent's Expanded.
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: _canAfford ? onEnter : null,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: _palette,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-                width: 1.5,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black54,
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _tierLabel,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '$bet',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            height: 1,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            '🪙 ต่อมือ',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: v.bg,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    width: 1.4,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 14,
+                      offset: Offset(0, 8),
                     ),
                   ],
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: _canAfford
-                      ? const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'เข้าเล่น',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Stack(
+                    children: [
+                      // Suit watermark — large, low-contrast, behind content.
+                      Positioned(
+                        right: -28,
+                        bottom: -36,
+                        child: IgnorePointer(
+                          child: Text(
+                            v.suit,
+                            style: TextStyle(
+                              color: v.suitColor,
+                              fontSize: 200,
+                              height: 1,
+                              shadows: const [
+                                Shadow(
+                                  color: Colors.black38,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
                             ),
-                            SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_forward,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ],
-                        )
-                      : const Row(
-                          mainAxisSize: MainAxisSize.min,
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        // Compact portrait layout. Landscape phones can be
+                        // as short as ~180 px in the tier-list row, so this
+                        // column has to fit ≤ ~170 px of content. We
+                        // collapse "ผู้เล่น/ห้อง" into one row and elide the
+                        // italic sub line for screens where every pixel
+                        // matters; Flexible+FittedBox absorbs slack.
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.max,
                           children: [
-                            Icon(Icons.lock, color: Colors.white, size: 16),
-                            SizedBox(width: 4),
-                            Text(
-                              'เงินไม่พอ',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            _TierBadge(label: v.label, accent: v.accent),
+                            const SizedBox(height: 6),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.bottomLeft,
+                                    child: Text(
+                                      '$_bet',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 38,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1,
+                                        letterSpacing: -1,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black54,
+                                            blurRadius: 5,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 4),
+                                  child: Text(
+                                    '🪙',
+                                    style: TextStyle(fontSize: 15),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // ผู้เล่น/ห้อง — headline live signal, on one
+                            // row so the card stays short.
+                            Row(
+                              children: [
+                                Icon(Icons.person,
+                                    size: 14, color: v.accent),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${tier.players} คน',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(Icons.meeting_room_outlined,
+                                    size: 14, color: v.accent),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${tier.rooms} ห้อง',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.emoji_events_outlined,
+                                    size: 13, color: v.accent),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'พูลสูงสุด ~$pot 🪙',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: _TierCta(canAfford: _canAfford),
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
+              if (!_canAfford)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TierVisual {
+  const _TierVisual({
+    required this.label,
+    required this.sub,
+    required this.bg,
+    required this.accent,
+    required this.suit,
+    required this.suitColor,
+  });
+  final String label;
+  final String sub;
+  final List<Color> bg;
+  final Color accent;
+  final String suit;
+  final Color suitColor;
+}
+
+class _TierBadge extends StatelessWidget {
+  const _TierBadge({required this.label, required this.accent});
+  final String label;
+  final Color accent;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.55)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TierCta extends StatelessWidget {
+  const _TierCta({required this.canAfford});
+  final bool canAfford;
+  @override
+  Widget build(BuildContext context) {
+    if (!canAfford) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock, color: Colors.white70, size: 16),
+            SizedBox(width: 4),
+            Text(
+              'เงินไม่พอ',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFD24A), Color(0xFFC8932A)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [BoxShadow(color: Color(0x88FFD24A), blurRadius: 14)],
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'เข้าเล่น',
+              style: TextStyle(
+                color: Color(0xFF1A1A1A),
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
+              ),
+            ),
+            SizedBox(width: 4),
+            Icon(Icons.arrow_forward_rounded,
+                color: Color(0xFF1A1A1A), size: 18),
+          ],
         ),
       ),
     );
@@ -2146,10 +2881,134 @@ class _DeckBackCard extends StatelessWidget {
   }
 }
 
-/// Stack of every table meld, each tappable so the player can target it for
-/// "ฝาก" (layoff). The selected meld glows gold; tapping it again deselects.
-class _MeldsOverlay extends StatelessWidget {
-  const _MeldsOverlay({
+/// Four spatial regions of the felt — one per player. Each quadrant holds
+/// only the melds owned by its assigned player so the board reads as
+/// "AAA 234 567 / KKK AKQJ10" per corner instead of a single mixed column.
+enum _MeldQuadrant {
+  a, // top-left      — first opponent (lowest non-self seat)
+  b, // top-right     — second opponent, grows from screen-centre going right
+  c, // bottom-left   — self (always)
+  d, // bottom-right  — third opponent, grows from screen-centre going right
+}
+
+/// Maps a meld's `owner` seat index to its quadrant. Self is always C;
+/// opponents are sorted ascending by absolute seat index and fill A → B → D.
+/// Returns null if the owner isn't in `view.players` (e.g. stale event).
+_MeldQuadrant? _quadrantFor(int owner, GameView view) {
+  if (owner == view.yourSeat) return _MeldQuadrant.c;
+  final opps = [
+    for (final p in view.players)
+      if (p.seat != view.yourSeat) p.seat,
+  ]..sort();
+  final idx = opps.indexOf(owner);
+  if (idx < 0) return null;
+  if (idx == 0) return _MeldQuadrant.a;
+  if (idx == 1) return _MeldQuadrant.b;
+  return _MeldQuadrant.d;
+}
+
+/// Lays out the four quadrant meld panels over the felt. Sits inside the
+/// game-screen Stack as a `Positioned.fill` child so it occupies the same
+/// box as the seat/centre-pile layer; each quadrant is then a `Positioned`
+/// inside this layer's internal Stack.
+class _QuadrantMeldsLayer extends StatelessWidget {
+  const _QuadrantMeldsLayer({
+    required this.view,
+    required this.selectedId,
+    required this.onTap,
+  });
+  final GameView view;
+  final String? selectedId;
+  final void Function(String meldId) onTap;
+
+  // Vertical buffers that keep meld panels clear of the seat cards (top
+  // ~70px) and the hand-and-controls strip (bottom ~140px).
+  static const double _topInset = 78;
+  static const double _bottomInset = 140;
+  static const double _sideInset = 8;
+
+  @override
+  Widget build(BuildContext context) {
+    // Group melds by quadrant in one pass.
+    final byQuad = <_MeldQuadrant, List<MeldView>>{};
+    for (final m in view.melds) {
+      final q = _quadrantFor(m.owner, view);
+      if (q == null) continue;
+      byQuad.putIfAbsent(q, () => <MeldView>[]).add(m);
+    }
+    if (byQuad.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        // Each quadrant takes ~46% of the screen width so A/B and C/D have
+        // breathing room around the centre pile.
+        final halfW = c.maxWidth * 0.46;
+
+        Widget panel({
+          required _MeldQuadrant q,
+          required double? left,
+          required double? right,
+          required double? top,
+          required double? bottom,
+        }) {
+          final melds = byQuad[q];
+          if (melds == null || melds.isEmpty) return const SizedBox.shrink();
+          return Positioned(
+            left: left,
+            right: right,
+            top: top,
+            bottom: bottom,
+            width: halfW,
+            child: _QuadrantMelds(
+              melds: melds,
+              selectedId: selectedId,
+              onTap: onTap,
+            ),
+          );
+        }
+
+        return Stack(
+          children: [
+            panel(
+              q: _MeldQuadrant.a,
+              left: _sideInset,
+              right: null,
+              top: _topInset,
+              bottom: null,
+            ),
+            panel(
+              q: _MeldQuadrant.b,
+              left: null,
+              right: _sideInset,
+              top: _topInset,
+              bottom: null,
+            ),
+            panel(
+              q: _MeldQuadrant.c,
+              left: _sideInset,
+              right: null,
+              top: null,
+              bottom: _bottomInset,
+            ),
+            panel(
+              q: _MeldQuadrant.d,
+              left: null,
+              right: _sideInset,
+              top: null,
+              bottom: _bottomInset,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A single quadrant's meld stack. Wraps the owner's melds in a left-aligned
+/// `Wrap` so cards flow left→right and wrap down — exactly what the user's
+/// "ลงซ้ายไปขวา แล้วค่อยลงล่าง" rule asks for.
+class _QuadrantMelds extends StatelessWidget {
+  const _QuadrantMelds({
     required this.melds,
     required this.selectedId,
     required this.onTap,
@@ -2160,38 +3019,19 @@ class _MeldsOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Group melds by owner so each player's exposed cards line up on one
-    // horizontal row — e.g. owner 0's row reads "AAA 234 567" left-to-right,
-    // owner 1's row sits below as "KKK AKQJ10". Rows stack by owner index.
-    final byOwner = <int, List<MeldView>>{};
-    for (final m in melds) {
-      byOwner.putIfAbsent(m.owner, () => <MeldView>[]).add(m);
-    }
-    final owners = byOwner.keys.toList()..sort();
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final o in owners)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  for (final m in byOwner[o]!)
-                    _MeldRow(
-                      meld: m,
-                      selected: m.id == selectedId,
-                      onTap: () => onTap(m.id),
-                    ),
-                ],
-              ),
-            ),
-        ],
-      ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      alignment: WrapAlignment.start,
+      crossAxisAlignment: WrapCrossAlignment.start,
+      children: [
+        for (final m in melds)
+          _MeldRow(
+            meld: m,
+            selected: m.id == selectedId,
+            onTap: () => onTap(m.id),
+          ),
+      ],
     );
   }
 }
@@ -2466,9 +3306,19 @@ class _RankPill extends StatelessWidget {
             ),
             if (rank.nextTitle != null && rank.nextWins != null) ...[
               const SizedBox(width: 6),
-              Text(
-                '(${rank.nextWins! - rank.wins} ครั้งสู่ ${rank.nextTitle})',
-                style: const TextStyle(color: Color(0xFF5A3A06), fontSize: 10),
+              // Hint is the longest part of the pill and the column it sits
+              // in can be narrow on landscape phones — Flexible + ellipsis
+              // lets it shrink instead of overflowing the row.
+              Flexible(
+                child: Text(
+                  '(${rank.nextWins! - rank.wins} ครั้งสู่ ${rank.nextTitle})',
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: const TextStyle(
+                    color: Color(0xFF5A3A06),
+                    fontSize: 10,
+                  ),
+                ),
               ),
             ],
           ],

@@ -56,8 +56,9 @@ final shopPackagesProvider = FutureProvider.autoDispose<List<CoinPackage>>((
   return ref.read(apiClientProvider).shopPackages(g.token);
 });
 
-/// Server-defined bet-tier menu (`GET /tiers`).
-final tiersProvider = FutureProvider.autoDispose<List<int>>((ref) async {
+/// Server-defined bet-tier menu (`GET /tiers`). Each `TierInfo` carries the
+/// stake plus a live snapshot of how many players + rooms exist at it.
+final tiersProvider = FutureProvider.autoDispose<List<TierInfo>>((ref) async {
   final g = ref.watch(sessionProvider);
   if (g == null) return const [];
   return ref.read(apiClientProvider).tiers(g.token);
@@ -139,17 +140,27 @@ class GameController extends StateNotifier<GameView> {
   void ready() => _ws.send('ready');
   void drawDeck() => _ws.send('draw_deck');
 
-  /// "เก็บ" — picking a card from the discard pile and committing it into a
-  /// meld with [supportingCards] from the hand in the same action.
+  /// "เก็บ" — pick a card from the discard pile.
+  ///
+  /// If [meldId] is supplied the engine takes the **ฝากดัมมี่** path: the
+  /// picked card is laid off directly onto that existing meld and no new
+  /// meld is formed (supportingCards may be empty).
+  ///
+  /// Otherwise the picked card must immediately combine with
+  /// [supportingCards] from the hand into a brand-new meld.
   ///
   /// If [targetCard] is null/empty the top of the discard pile is taken;
   /// otherwise the engine finds [targetCard] in the pile and (for non-top
   /// picks) pulls every card above it into the player's hand.
-  void drawDiscard(List<String> supportingCards, {String? targetCard}) =>
-      _ws.send('draw_discard', {
-        'cards': supportingCards,
-        if (targetCard != null && targetCard.isNotEmpty) 'card': targetCard,
-      });
+  void drawDiscard(
+    List<String> supportingCards, {
+    String? targetCard,
+    String? meldId,
+  }) => _ws.send('draw_discard', {
+    'cards': supportingCards,
+    if (targetCard != null && targetCard.isNotEmpty) 'card': targetCard,
+    if (meldId != null && meldId.isNotEmpty) 'meld_id': meldId,
+  });
   void knock(String card, {bool dark = false}) =>
       _ws.send('knock', {'card': card, 'dark': dark});
 

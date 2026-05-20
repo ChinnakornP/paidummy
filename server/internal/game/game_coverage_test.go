@@ -370,3 +370,48 @@ func TestDiscardDummyPenalty(t *testing.T) {
 		t.Fatalf("p1 should owe nothing, got %d", gs.DumpPenalties[1])
 	}
 }
+
+// TestDrawDiscardLayoff (ฝากดัมมี่): player picks up the discard top and
+// lays it directly onto an existing meld instead of forming a new one. The
+// original discarder owes the ทิ้งดัมมี่ penalty.
+func TestDrawDiscardLayoff(t *testing.T) {
+	e := Engine{}
+	rs := DefaultRuleSet()
+	gs, _, _ := e.Start([]string{"A", "B"}, rs, 21)
+	gs.FirstMove = false
+
+	// Setup: player 1 already has 5D-6D-7D on the table.
+	m, _ := NewMeld(gs.nextMeldID(), cards("5D", "6D", "7D"), 1, rs)
+	gs.Melds = []Meld{m}
+	gs.Turn = 0
+	gs.Phase = PhaseMeld
+	gs.Players[0].Hand = cards("8D", "KH")
+	if _, err := e.ApplyAction(gs, 0, Action{Type: ActDiscard, Card: MustCard("8D")}); err != nil {
+		t.Fatalf("p0 discard: %v", err)
+	}
+
+	// Player 1's draw: ฝากดัมมี่ on 8D → meld m1.
+	_, err := e.ApplyAction(gs, 1, Action{
+		Type:   ActDrawDiscard,
+		Card:   MustCard("8D"),
+		MeldID: "m1",
+	})
+	if err != nil {
+		t.Fatalf("ฝากดัมมี่ errored: %v", err)
+	}
+	if len(gs.Melds[0].Cards) != 4 {
+		t.Fatalf("meld should be 4 cards (5D6D7D8D), got %v", gs.Melds[0].Cards)
+	}
+	// Pile started with the dealt head card + 8D after p0's discard; only
+	// 8D should leave, head card stays.
+	if len(gs.DiscardPile) != 1 {
+		t.Fatalf("discard should hold only the head card, got %v", gs.DiscardPile)
+	}
+	// p0 owes ทิ้งเต็ม + ทิ้งดัมมี่ = 2 × DumpPenalty.
+	if gs.DumpPenalties[0] != 2*rs.DumpPenalty {
+		t.Fatalf("p0 penalty = %d, want %d", gs.DumpPenalties[0], 2*rs.DumpPenalty)
+	}
+	if gs.Phase != PhaseMeld {
+		t.Fatalf("phase = %v, want PhaseMeld", gs.Phase)
+	}
+}

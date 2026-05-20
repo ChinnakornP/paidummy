@@ -421,6 +421,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 ),
               ),
 
+            // Centre pile (deck back + head + tappable discard). Tapping a
+            // discard card targets it for "เก็บ"; tapping again deselects.
+            Align(
+              alignment: const Alignment(0, -0.05),
+              child: _CenterPile(view: view),
+            ),
+
             // Tappable meld overlay above the felt. Selecting a meld switches
             // the "ลง" action button into "ฝาก" mode.
             if (view.melds.isNotEmpty)
@@ -699,6 +706,7 @@ class _HandAndControls extends ConsumerWidget {
     }
     if (view.phase == 'draw') {
       // Primary action when your turn opens: draw a card.
+      final target = ref.watch(selectedDiscardCardProvider);
       return [
         _GameButton(
           icon: Icons.style,
@@ -709,13 +717,17 @@ class _HandAndControls extends ConsumerWidget {
         ),
         _GameButton(
           icon: Icons.south,
-          // เก็บ requires selecting ≥2 hand cards that, together with the
-          // discard top, form a valid meld — the server will reject otherwise.
+          // "เก็บ" picks the tapped discard card (or the top if none tapped)
+          // and melds it with ≥2 selected hand cards. Server pulls newer
+          // cards into hand if the target is deep in the pile.
           label: 'เก็บ',
           colors: const [Color(0xFF9A9A9A), Color(0xFF6A6A6A)],
-          onTap: (view.discardTop.isEmpty || view.selected.length < 2)
+          onTap: (view.discardPile.isEmpty || view.selected.length < 2)
               ? null
-              : () => ctrl.drawDiscard(view.selected.toList()),
+              : () {
+                  ctrl.drawDiscard(view.selected.toList(), targetCard: target);
+                  ref.read(selectedDiscardCardProvider.notifier).state = null;
+                },
         ),
       ];
     }
@@ -1476,6 +1488,220 @@ class _TierCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Centre pile (face-down deck chip + face-up head card + tappable discard
+/// pile) rendered as Flutter widgets so each discard card can be tapped to
+/// target it for "เก็บ".
+class _CenterPile extends ConsumerWidget {
+  const _CenterPile({required this.view});
+  final GameView view;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pile = view.discardPile;
+    final selected = ref.watch(selectedDiscardCardProvider);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Deck back with remaining count.
+          _DeckBackCard(count: view.drawCount),
+          if (view.headCard.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            _PileFaceCard(label: view.headCard),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                'หัว',
+                style: TextStyle(color: Colors.white60, fontSize: 9),
+              ),
+            ),
+          ],
+          if (pile.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            _DiscardRow(
+              pile: pile,
+              selected: selected,
+              onTap: (card) {
+                final cur = ref.read(selectedDiscardCardProvider);
+                ref.read(selectedDiscardCardProvider.notifier).state =
+                    cur == card ? null : card;
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Horizontal discard pile (oldest→newest). Adaptive overlap keeps any
+/// length fitting a reasonable width; selected card lifts.
+class _DiscardRow extends StatelessWidget {
+  const _DiscardRow({
+    required this.pile,
+    required this.selected,
+    required this.onTap,
+  });
+  final List<String> pile;
+  final String? selected;
+  final void Function(String card) onTap;
+
+  static const _cardW = 50.0;
+  static const _maxRowWidth = 260.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = pile.length;
+    const naturalStep = 22.0;
+    final fitStep = n > 1 ? (_maxRowWidth - _cardW) / (n - 1) : 0.0;
+    final step = (fitStep > 0 && fitStep < naturalStep) ? fitStep : naturalStep;
+    final width = n == 0 ? 0.0 : _cardW + (n - 1) * step;
+    return SizedBox(
+      width: width,
+      height: 78,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var i = 0; i < n; i++)
+            Positioned(
+              left: i * step,
+              top: selected == pile[i] ? -6 : 4,
+              child: GestureDetector(
+                onTap: () => onTap(pile[i]),
+                child: _PileFaceCard(
+                  label: pile[i],
+                  highlight: selected == pile[i],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small face-up card used by the centre pile.
+class _PileFaceCard extends StatelessWidget {
+  const _PileFaceCard({required this.label, this.highlight = false});
+  final String label;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label.length < 2) return const SizedBox(width: 50, height: 70);
+    final rank = label[0] == 'T' ? '10' : label[0];
+    final suit = label[1];
+    final isRed = suit == 'H' || suit == 'D';
+    final color = isRed ? const Color(0xFFD63333) : const Color(0xFF1A1A1A);
+    final suitGlyph = switch (suit) {
+      'H' => '♥',
+      'D' => '♦',
+      'S' => '♠',
+      _ => '♣',
+    };
+    return Container(
+      width: 50,
+      height: 70,
+      decoration: BoxDecoration(
+        color: highlight ? const Color(0xFFFFF8D8) : Colors.white,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(
+          color: highlight ? const Color(0xFFFFD24A) : const Color(0xFFCCCCCC),
+          width: highlight ? 2.5 : 1,
+        ),
+        boxShadow: [
+          if (highlight)
+            const BoxShadow(color: Color(0xAAFFD24A), blurRadius: 12),
+          const BoxShadow(
+            color: Colors.black45,
+            blurRadius: 3,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            rank,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Georgia',
+              height: 1,
+            ),
+          ),
+          Text(
+            suitGlyph,
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontFamily: 'Georgia',
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Deck-back chip showing remaining draw-pile count.
+class _DeckBackCard extends StatelessWidget {
+  const _DeckBackCard({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50,
+      height: 70,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFA82020), Color(0xFF8A1818)],
+        ),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: const [
+          BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Positioned(
+            left: 5,
+            bottom: 4,
+            child: Text(
+              '⭐',
+              style: TextStyle(color: Color(0xFFFFD700), fontSize: 10),
+            ),
+          ),
+        ],
       ),
     );
   }

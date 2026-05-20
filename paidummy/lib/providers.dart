@@ -70,6 +70,11 @@ final currentRoomProvider = StateProvider<String?>((ref) => null);
 /// in which case the "ลง" button creates a new meld from selected hand cards.
 final selectedMeldProvider = StateProvider<String?>((ref) => null);
 
+/// Currently tapped discard-pile card (for "เก็บ"). Null = default to the
+/// top of the pile when the player presses เก็บ. When set to a non-top card,
+/// the server will pull every newer card above it into the player's hand.
+final selectedDiscardCardProvider = StateProvider<String?>((ref) => null);
+
 class GameController extends StateNotifier<GameView> {
   GameController(this._ws) : super(const GameView()) {
     _ws.messages.listen(_onMessage);
@@ -116,10 +121,17 @@ class GameController extends StateNotifier<GameView> {
   void ready() => _ws.send('ready');
   void drawDeck() => _ws.send('draw_deck');
 
-  /// "เก็บ" — picking up the discard top requires committing it into a meld
-  /// with [supportingCards] from the hand in the same action (server rule).
-  void drawDiscard(List<String> supportingCards) =>
-      _ws.send('draw_discard', {'cards': supportingCards});
+  /// "เก็บ" — picking a card from the discard pile and committing it into a
+  /// meld with [supportingCards] from the hand in the same action.
+  ///
+  /// If [targetCard] is null/empty the top of the discard pile is taken;
+  /// otherwise the engine finds [targetCard] in the pile and (for non-top
+  /// picks) pulls every card above it into the player's hand.
+  void drawDiscard(List<String> supportingCards, {String? targetCard}) =>
+      _ws.send('draw_discard', {
+        'cards': supportingCards,
+        if (targetCard != null && targetCard.isNotEmpty) 'card': targetCard,
+      });
   void knock(String card, {bool dark = false}) =>
       _ws.send('knock', {'card': card, 'dark': dark});
   void discard(String card) => _ws.send('discard', {'card': card});

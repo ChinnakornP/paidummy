@@ -26,13 +26,6 @@ class TableGame extends FlameGame {
   static const _woodDark = Color(0xFF8A5A2F);
   static const _feltLight = Color(0xFF2D8053);
   static const _feltDark = Color(0xFF1F5F3D);
-  static const _cardFace = Color(0xFFFFFFFF);
-  static const _cardEdge = Color(0xFFCCCCCC);
-  static const _red = Color(0xFFD63333);
-  static const _black = Color(0xFF1A1A1A);
-  static const _backRed = Color(0xFFA82020);
-  static const _backRedDark = Color(0xFF8A1818);
-  static const _gold = Color(0xFFFFD700);
 
   @override
   Color backgroundColor() => _bg;
@@ -150,123 +143,8 @@ class TableGame extends FlameGame {
   }
 
   // ---- cards ----
-
-  static const _cardW = 50.0;
-  static const _cardH = 70.0;
-
-  void _faceCard(Canvas c, Offset at, String code) {
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(at.dx, at.dy, _cardW, _cardH),
-      const Radius.circular(5),
-    );
-    c.drawRRect(
-      rect.shift(const Offset(0, 2)),
-      Paint()..color = Colors.black.withValues(alpha: 0.3),
-    );
-    c.drawRRect(rect, Paint()..color = _cardFace);
-    c.drawRRect(
-      rect,
-      Paint()
-        ..color = _cardEdge
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-    if (code.isEmpty || code.length != 2) return;
-    final rank = code[0];
-    final suit = code[1];
-    final isRed = suit == 'H' || suit == 'D';
-    final color = isRed ? _red : _black;
-    final suitGlyph = switch (suit) {
-      'H' => '♥',
-      'D' => '♦',
-      'S' => '♠',
-      _ => '♣',
-    };
-    final rankTp = TextPainter(
-      text: TextSpan(
-        text: rank == 'T' ? '10' : rank,
-        style: TextStyle(
-          color: color,
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Georgia',
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    rankTp.paint(c, Offset(at.dx + 4, at.dy + 4));
-    final suitTp = TextPainter(
-      text: TextSpan(
-        text: suitGlyph,
-        style: TextStyle(color: color, fontSize: 22, fontFamily: 'Georgia'),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    suitTp.paint(c, Offset(at.dx + 4, at.dy + 22));
-  }
-
-  /// Red diagonal-stripe card back with optional centre number (deck count)
-  /// and a small gold ⭐ in the bottom-left.
-  void _backCard(Canvas c, Offset at, {String? centre}) {
-    final rect = Rect.fromLTWH(at.dx, at.dy, _cardW, _cardH);
-    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(5));
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.shift(const Offset(0, 2)),
-        const Radius.circular(5),
-      ),
-      Paint()..color = Colors.black.withValues(alpha: 0.3),
-    );
-    c.drawRRect(rr, Paint()..color = _backRed);
-    c.save();
-    c.clipRRect(rr);
-    final stripe = Paint()..color = _backRedDark;
-    for (double i = -_cardH; i < _cardW + _cardH; i += 8) {
-      final p = Path()
-        ..moveTo(at.dx + i, at.dy)
-        ..lineTo(at.dx + i + 4, at.dy)
-        ..lineTo(at.dx + i + 4 + _cardH, at.dy + _cardH)
-        ..lineTo(at.dx + i + _cardH, at.dy + _cardH)
-        ..close();
-      c.drawPath(p, stripe);
-    }
-    c.restore();
-    c.drawRRect(
-      rr.deflate(1),
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    if (centre != null) {
-      final tp = TextPainter(
-        text: TextSpan(
-          text: centre,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(
-        c,
-        Offset(
-          at.dx + (_cardW - tp.width) / 2,
-          at.dy + (_cardH - tp.height) / 2,
-        ),
-      );
-    }
-    final star = TextPainter(
-      text: const TextSpan(
-        text: '⭐',
-        style: TextStyle(color: _gold, fontSize: 10),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    star.paint(c, Offset(at.dx + 5, at.dy + _cardH - star.height - 4));
-  }
+  // Card drawing moved to Flutter overlays (see ui.dart) so cards can be
+  // tapped. The flame layer now only paints the felt + decorations.
 
   void _dashedCircle(Canvas c, Offset center, double radius) {
     final p = Paint()
@@ -329,32 +207,9 @@ class TableGame extends FlameGame {
     // Decorative dashed refresh circle on the right edge.
     _dashedCircle(canvas, Offset(f.right - 36, cy), 18);
 
-    // Left chip: deck-back with remaining draw count, then the face-up head
-    // card immediately next to it.
-    final pileY = cy - _cardH / 2;
-    var px = f.left + 32;
-    _backCard(canvas, Offset(px, pileY), centre: '${view.drawCount}');
-    px += _cardW - 28;
-    if (view.headCard.isNotEmpty) {
-      _faceCard(canvas, Offset(px, pileY), view.headCard);
-    }
-
-    // Discard pile (ทิ้ง): every discarded card lined up oldest→newest with
-    // adaptive overlap so a long pile still fits the felt.
-    final pile = view.discardPile;
-    if (pile.isNotEmpty) {
-      final discardStart = px + _cardW + 12;
-      final availableW = f.right - discardStart - 14;
-      const naturalStep = 22.0; // matches game_design_v1.html overlap (-28)
-      final step = pile.length > 1
-          ? (availableW - _cardW) / (pile.length - 1)
-          : 0.0;
-      final useStep = (step > 0 && step < naturalStep) ? step : naturalStep;
-      for (var i = 0; i < pile.length; i++) {
-        _faceCard(canvas, Offset(discardStart + i * useStep, pileY), pile[i]);
-      }
-    }
-    // Note: table melds are rendered as a Flutter overlay (see _MeldsOverlay
-    // in ui.dart) so each meld is tappable for layoff ("ฝาก") UX.
+    // Centre pile (deck back + head card + discard pile) is rendered as a
+    // Flutter overlay in ui.dart so every discard card can be tapped — flame
+    // only paints the felt + decorations here. Table melds are likewise a
+    // Flutter overlay (`_MeldsOverlay`).
   }
 }

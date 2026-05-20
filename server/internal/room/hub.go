@@ -799,11 +799,20 @@ func decodeAction(typ string, data json.RawMessage) (game.Action, error) {
 		return game.Action{Type: game.ActDrawDeck}, nil
 	case "draw_discard":
 		var d struct {
+			Card  string   `json:"card"` // optional: target card in the pile
 			Cards []string `json:"cards"`
 		}
 		_ = json.Unmarshal(data, &d)
 		cs, err := parseCards(d.Cards)
-		return game.Action{Type: game.ActDrawDiscard, Cards: cs}, err
+		var target game.Card
+		if d.Card != "" {
+			tc, perr := game.ParseCard(d.Card)
+			if perr != nil {
+				return game.Action{}, perr
+			}
+			target = tc
+		}
+		return game.Action{Type: game.ActDrawDiscard, Cards: cs, Card: target}, err
 	case "meld":
 		var d struct {
 			Cards []string `json:"cards"`

@@ -86,22 +86,38 @@ func (Engine) applyDraw(gs *GameState, p int, a Action) ([]Event, error) {
 		return []Event{{Type: EvtDrewDeck, Player: p, Card: c}}, nil
 
 	case ActDrawDiscard:
-		// "เก็บ" rule: a player may only pick up the discard top if it
-		// combines with cards in their hand to form a valid meld, and that
-		// meld is committed immediately (the picked card and the supporting
-		// hand cards leave hand → table). a.Cards is the supporting set.
-		// Example: hand 3,A,7♠,8♠,9♠ — picking 7♣ is invalid (suit/run
-		// mismatch); picking 7♠ requires Cards=[8♠,9♠] so the meld 7-8-9♠
-		// is laid down in the same action.
-		// // TODO(spec): some houses also allow picking to lay off onto an
-		// existing table meld; not supported yet.
+		// "เก็บ" rule: the picked card must immediately combine with cards in
+		// the hand to form a valid meld; the picked card and the supporting
+		// hand cards leave the discard/hand → table in one action.
+		//
+		// a.Card  — optional target. Zero-value picks the top of the pile.
+		//           If specified, the engine finds it in the pile (closest to
+		//           top wins on ties); cards *newer* than the target (above
+		//           it) are pulled into the player's hand as the cost of
+		//           reaching that deep.
+		// a.Cards — supporting hand cards. The meld is built from
+		//           a.Cards ∪ {target}.
 		if gs.FirstMove {
 			return nil, ErrMustDrawDeck
 		}
-		top, ok := gs.topDiscard()
-		if !ok {
+		if len(gs.DiscardPile) == 0 {
 			return nil, ErrEmptyDiscard
 		}
+		// Locate target.
+		targetIdx := len(gs.DiscardPile) - 1
+		if a.Card != (Card{}) {
+			targetIdx = -1
+			for i := len(gs.DiscardPile) - 1; i >= 0; i-- {
+				if gs.DiscardPile[i] == a.Card {
+					targetIdx = i
+					break
+				}
+			}
+			if targetIdx == -1 {
+				return nil, ErrCardNotHeld
+			}
+		}
+		target := gs.DiscardPile[targetIdx]
 		if len(a.Cards) < gs.RuleSet.MinMeldLen-1 {
 			return nil, ErrPickupNeedsMeld
 		}
@@ -110,13 +126,15 @@ func (Engine) applyDraw(gs *GameState, p int, a Action) ([]Event, error) {
 		}
 		combined := make([]Card, 0, len(a.Cards)+1)
 		combined = append(combined, a.Cards...)
-		combined = append(combined, top)
+		combined = append(combined, target)
 		m, err := NewMeld(gs.nextMeldID(), combined, p, gs.RuleSet)
 		if err != nil {
 			return nil, ErrPickupNeedsMeld
 		}
-		// Commit atomically — pop discard, remove supporting cards, expose meld.
-		gs.DiscardPile = gs.DiscardPile[:len(gs.DiscardPile)-1]
+		// Pull newer cards (above target) into hand as the pickup cost.
+		extras := append([]Card(nil), gs.DiscardPile[targetIdx+1:]...)
+		gs.DiscardPile = gs.DiscardPile[:targetIdx] // also drops target
+		gs.Players[p].Hand = append(gs.Players[p].Hand, extras...)
 		gs.removeFromHand(p, a.Cards)
 		gs.Melds = append(gs.Melds, m)
 		gs.Players[p].Melds = append(gs.Players[p].Melds, m.ID)
@@ -124,7 +142,7 @@ func (Engine) applyDraw(gs *GameState, p int, a Action) ([]Event, error) {
 		gs.absorbHead(m.Cards, p)
 		gs.Phase = PhaseMeld
 		return []Event{
-			{Type: EvtDrewDiscard, Player: p, Card: top},
+			{Type: EvtDrewDiscard, Player: p, Card: target},
 			{Type: EvtMelded, Player: p, Cards: m.Cards, MeldID: m.ID},
 		}, nil
 

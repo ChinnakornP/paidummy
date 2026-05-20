@@ -108,6 +108,77 @@ func TestEngineMeldLayoffDrawDiscardPaths(t *testing.T) {
 	}
 }
 
+// TestDrawDiscardTargetWithExtras: when the player picks a card that isn't
+// the top of the pile, every newer card (above the target) is pulled into
+// their hand as the cost of reaching deep.
+func TestDrawDiscardTargetWithExtras(t *testing.T) {
+	e := Engine{}
+	rs := DefaultRuleSet()
+	gs, _, _ := e.Start([]string{"A", "B"}, rs, 11)
+
+	// Plant a deterministic state: it's player 0's turn, phase draw, discard
+	// pile is [QH, 5D, 7H, 2C] (oldest→newest). Player wants to pick QH
+	// (oldest) and meld it with QC+QS from hand.
+	gs.FirstMove = false
+	gs.Turn = 0
+	gs.Phase = PhaseDraw
+	gs.DiscardPile = cards("QH", "5D", "7H", "2C")
+	gs.Players[0].Hand = cards("QC", "QS", "KH")
+	preHandLen := len(gs.Players[0].Hand)
+
+	ev, err := e.ApplyAction(gs, 0, Action{
+		Type:  ActDrawDiscard,
+		Card:  MustCard("QH"),
+		Cards: cards("QC", "QS"),
+	})
+	if err != nil {
+		t.Fatalf("pick QH failed: %v", err)
+	}
+	if len(ev) != 2 || ev[0].Type != EvtDrewDiscard || ev[0].Card != MustCard("QH") {
+		t.Fatalf("expected drew_discard for QH: %+v", ev)
+	}
+	if len(gs.DiscardPile) != 0 {
+		t.Fatalf("discard pile should be empty, got %v", gs.DiscardPile)
+	}
+	wantHand := preHandLen + 3 - 2 // +3 extras, -2 used in meld
+	if len(gs.Players[0].Hand) != wantHand {
+		t.Fatalf("hand len = %d, want %d (extras pulled in)", len(gs.Players[0].Hand), wantHand)
+	}
+	for _, c := range cards("5D", "7H", "2C") {
+		found := false
+		for _, h := range gs.Players[0].Hand {
+			if h == c {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("extra %s should now be in hand", c)
+		}
+	}
+	if len(gs.Melds) != 1 || len(gs.Melds[0].Cards) != 3 {
+		t.Fatalf("expected one 3-card meld, got %v", gs.Melds)
+	}
+}
+
+// TestDrawDiscardTargetNotInPile: picking a card not present errors out.
+func TestDrawDiscardTargetNotInPile(t *testing.T) {
+	e := Engine{}
+	gs, _, _ := e.Start([]string{"A", "B"}, DefaultRuleSet(), 12)
+	gs.FirstMove = false
+	gs.Turn = 0
+	gs.Phase = PhaseDraw
+	gs.DiscardPile = cards("QH")
+	gs.Players[0].Hand = cards("QC", "QS")
+	if _, err := e.ApplyAction(gs, 0, Action{
+		Type:  ActDrawDiscard,
+		Card:  MustCard("KC"),
+		Cards: cards("QC", "QS"),
+	}); !errors.Is(err, ErrCardNotHeld) {
+		t.Fatalf("missing target should fail: %v", err)
+	}
+}
+
 func TestDrawDiscardEmptyRejected(t *testing.T) {
 	e := Engine{}
 	gs, _, _ := e.Start([]string{"A", "B"}, DefaultRuleSet(), 6)

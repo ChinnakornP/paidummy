@@ -1515,21 +1515,14 @@ class _CenterPile extends ConsumerWidget {
         children: [
           // Deck back with remaining count.
           _DeckBackCard(count: view.drawCount),
-          if (view.headCard.isNotEmpty) ...[
-            const SizedBox(width: 4),
-            _PileFaceCard(label: view.headCard),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 2),
-              child: Text(
-                'หัว',
-                style: TextStyle(color: Colors.white60, fontSize: 9),
-              ),
-            ),
-          ],
+          // The head card now sits at the bottom of the discard pile (it's
+          // pickable like any other) — rendered inside _DiscardRow with a
+          // 👑 marker. We no longer render it separately.
           if (pile.isNotEmpty) ...[
             const SizedBox(width: 10),
             _DiscardRow(
               pile: pile,
+              headCard: view.headCard,
               selected: selected,
               onTap: (card) {
                 final cur = ref.read(selectedDiscardCardProvider);
@@ -1549,10 +1542,12 @@ class _CenterPile extends ConsumerWidget {
 class _DiscardRow extends StatelessWidget {
   const _DiscardRow({
     required this.pile,
+    required this.headCard,
     required this.selected,
     required this.onTap,
   });
   final List<String> pile;
+  final String headCard; // marked with 👑 if present in the pile
   final String? selected;
   final void Function(String card) onTap;
 
@@ -1581,6 +1576,7 @@ class _DiscardRow extends StatelessWidget {
                 child: _PileFaceCard(
                   label: pile[i],
                   highlight: selected == pile[i],
+                  isHead: pile[i] == headCard,
                 ),
               ),
             ),
@@ -1590,11 +1586,18 @@ class _DiscardRow extends StatelessWidget {
   }
 }
 
-/// Small face-up card used by the centre pile.
+/// Small face-up card used by the centre pile. When [isHead] is true, a
+/// crown badge is overlaid in the top-right so players know that card
+/// carries the +50 head bonus when melded.
 class _PileFaceCard extends StatelessWidget {
-  const _PileFaceCard({required this.label, this.highlight = false});
+  const _PileFaceCard({
+    required this.label,
+    this.highlight = false,
+    this.isHead = false,
+  });
   final String label;
   final bool highlight;
+  final bool isHead;
 
   @override
   Widget build(BuildContext context) {
@@ -1609,7 +1612,7 @@ class _PileFaceCard extends StatelessWidget {
       'S' => '♠',
       _ => '♣',
     };
-    return Container(
+    final card = Container(
       width: 50,
       height: 70,
       decoration: BoxDecoration(
@@ -1652,6 +1655,23 @@ class _PileFaceCard extends StatelessWidget {
               fontFamily: 'Georgia',
               height: 1,
             ),
+          ),
+        ],
+      ),
+    );
+    if (!isHead) return card;
+    // Head card carries the +50 เกิดหัว bonus — overlay a crown badge.
+    return SizedBox(
+      width: 50,
+      height: 70,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          card,
+          const Positioned(
+            top: -6,
+            right: -4,
+            child: Text('👑', style: TextStyle(fontSize: 16)),
           ),
         ],
       ),

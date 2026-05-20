@@ -31,12 +31,16 @@ func (Engine) Start(playerIDs []string, rs RuleSet, seed int64) (*GameState, []E
 	deck := Shuffle(NewDeck(), seed)
 	hands, head, draw := Deal(deck, n, rs)
 
+	// The face-up "head" card is laid as the bottom (oldest) of the discard
+	// pile so it's pickable like any other discard. HeadCard is still tracked
+	// separately so the +50 เกิดหัว bonus can be awarded when whoever picks
+	// it up melds it.
 	gs := &GameState{
 		Players:     make([]Player, n),
 		Turn:        0,
 		Phase:       PhaseDraw,
 		DrawPile:    draw,
-		DiscardPile: nil,
+		DiscardPile: []Card{head},
 		HeadCard:    head,
 		HeadOwner:   -1,
 		Seed:        seed,

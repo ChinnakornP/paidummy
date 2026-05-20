@@ -179,10 +179,75 @@ func TestDrawDiscardTargetNotInPile(t *testing.T) {
 	}
 }
 
+// TestHeadCardSitsOnDiscardAndIsPickable: the face-up head card opens at
+// the bottom of the discard pile (so a player can "เก็บ" it on a later
+// turn) and triggers the +50 head bonus when melded.
+func TestHeadCardSitsOnDiscardAndIsPickable(t *testing.T) {
+	e := Engine{}
+	rs := DefaultRuleSet()
+	gs, _, _ := e.Start([]string{"A", "B"}, rs, 13)
+
+	// Sanity: head is the first (and currently only) discard card.
+	if len(gs.DiscardPile) != 1 || gs.DiscardPile[0] != gs.HeadCard {
+		t.Fatalf("head should seed discard pile: pile=%v head=%v",
+			gs.DiscardPile, gs.HeadCard)
+	}
+	// HeadOwner unclaimed until someone melds it.
+	if gs.HeadOwner != -1 {
+		t.Fatalf("HeadOwner pre-pickup = %d, want -1", gs.HeadOwner)
+	}
+
+	// Pretend player 0 already had their first draw and now wants to pick
+	// the head card. Seed a meld that combines with whatever the head is.
+	gs.FirstMove = false
+	gs.Turn = 0
+	gs.Phase = PhaseDraw
+	head := gs.HeadCard
+	// Two other cards of the same rank from the other three suits.
+	siblings := siblingsOf(head)
+	gs.Players[0].Hand = append([]Card{}, siblings...)
+
+	_, err := e.ApplyAction(gs, 0, Action{
+		Type:  ActDrawDiscard,
+		Card:  head,
+		Cards: siblings,
+	})
+	if err != nil {
+		t.Fatalf("picking head card failed: %v", err)
+	}
+	if gs.HeadOwner != 0 {
+		t.Fatalf("HeadOwner after pickup = %d, want 0", gs.HeadOwner)
+	}
+	if len(gs.DiscardPile) != 0 {
+		t.Fatalf("discard should be empty after head pickup, got %v", gs.DiscardPile)
+	}
+	// Score should credit +HeadCardBonus to the picker.
+	gs.Players[0].Hand = nil // ignore hand penalty for the assert
+	gs.RoundOver = true
+	sb := ScoreRound(gs)
+	if sb[0].HeadBonus != rs.HeadCardBonus {
+		t.Fatalf("head bonus = %d, want %d", sb[0].HeadBonus, rs.HeadCardBonus)
+	}
+}
+
+// siblingsOf returns the three other same-rank cards of a different suit
+// from c (always exists for any input card).
+func siblingsOf(c Card) []Card {
+	out := make([]Card, 0, 3)
+	for s := Clubs; s <= Spades; s++ {
+		if s == c.Suit {
+			continue
+		}
+		out = append(out, Card{Suit: s, Rank: c.Rank})
+	}
+	return out
+}
+
 func TestDrawDiscardEmptyRejected(t *testing.T) {
 	e := Engine{}
 	gs, _, _ := e.Start([]string{"A", "B"}, DefaultRuleSet(), 6)
 	gs.FirstMove = false
+	gs.DiscardPile = nil // Start seeds it with the head card; drain to test.
 	if _, err := e.ApplyAction(gs, 0, Action{Type: ActDrawDiscard}); !errors.Is(err, ErrEmptyDiscard) {
 		t.Fatalf("empty discard draw must fail: %v", err)
 	}

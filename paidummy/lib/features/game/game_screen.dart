@@ -13,6 +13,44 @@ import '../../shared/widgets/index.dart';
 import 'game_table.dart';
 import 'widgets/index.dart';
 
+/// "🤖 ใช้บอทเล่นแทน" chip rendered in the top-left of the game screen.
+/// Tap to toggle server-side auto-play for the local player.
+class _BotTakeoverChip extends StatelessWidget {
+  const _BotTakeoverChip({required this.enabled, required this.onTap});
+  final bool enabled;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: enabled
+          ? const Color(0xFF3C7A8C)
+          : Colors.black.withValues(alpha: 0.35),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🤖 ', style: TextStyle(fontSize: 14)),
+              Text(
+                enabled ? 'บอทเล่นแทน' : 'รับช่วงด้วยบอท',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key, required this.roomId});
   final String roomId;
@@ -173,6 +211,18 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             // Top-right "shop" button (gold circle + +120% badge), decorative
             // chrome from the design — wired to no backend yet.
             const Positioned(right: 16, top: 16, child: ShopButton()),
+
+            // Self-elect bot takeover toggle. Sits in the upper-left next to
+            // the leave chevron so it's easy to flip when stepping away.
+            if (selfPlayer != null && view.started)
+              Positioned(
+                left: 56,
+                top: 12,
+                child: _BotTakeoverChip(
+                  enabled: selfPlayer.botMode,
+                  onTap: () => ctrl.setBotTakeover(!selfPlayer!.botMode),
+                ),
+              ),
 
             // Purple side-tab on the right edge (decorative menu handle).
             const Align(alignment: Alignment.centerRight, child: SideTab()),

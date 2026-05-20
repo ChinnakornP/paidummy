@@ -9,10 +9,16 @@ class EntryCard extends StatelessWidget {
     required this.nameController,
     required this.busy,
     required this.onSubmit,
+    this.refController,
+    this.showRef = false,
+    this.onToggleRef,
   });
   final TextEditingController nameController;
   final bool busy;
   final Future<void> Function() onSubmit;
+  final TextEditingController? refController;
+  final bool showRef;
+  final VoidCallback? onToggleRef;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +82,51 @@ class EntryCard extends StatelessWidget {
               ),
             ),
           ),
+          if (refController != null) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: onToggleRef,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  Icon(
+                    showRef ? Icons.expand_less : Icons.expand_more,
+                    color: const Color(0xFFFFE7A6),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'มีรหัสเชิญจากเพื่อน?',
+                    style: TextStyle(
+                      color: Color(0xFFFFE7A6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (showRef) ...[
+              const SizedBox(height: 6),
+              TextField(
+                controller: refController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                cursorColor: const Color(0xFFFFE7A6),
+                decoration: InputDecoration(
+                  hintText: 'รหัสเชิญ 8 ตัวอักษร',
+                  hintStyle:
+                      TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+                  filled: true,
+                  fillColor: Colors.black.withValues(alpha: 0.35),
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ],
           const SizedBox(height: 16),
           // Primary CTA: gold gradient, glowing when active.
           DecoratedBox(

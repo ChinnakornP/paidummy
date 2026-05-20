@@ -139,6 +139,13 @@ class GameController extends StateNotifier<GameView> {
     clearSelection();
   }
 
+  /// Toggles the server-side "play out as bot" auto-takeover for this
+  /// seat. When enabled the shot clock collapses to ~1.5s and the server
+  /// auto-plays each of the player's turns until they untoggle (or
+  /// reconnect from a disconnect-elected takeover).
+  void setBotTakeover(bool enabled) =>
+      _ws.send('bot_takeover', {'enabled': enabled});
+
   /// Sends a chat line to all seated players. Empty lines are dropped
    /// server-side; the client just trims here for snappier feedback.
   void sendChat(String text) {

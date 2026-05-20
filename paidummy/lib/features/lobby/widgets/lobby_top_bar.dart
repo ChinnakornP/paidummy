@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/index.dart';
 import 'daily_bonus_button.dart';
+import 'ref_code_button.dart';
 import 'wallet_pill.dart';
 
 class LobbyTopBar extends StatelessWidget {
@@ -83,6 +84,8 @@ class LobbyTopBar extends StatelessWidget {
                   ),
                 ),
                 if (rank != null) RankPill(rank: rank!),
+                const SizedBox(height: 2),
+                const RefCodeButton(),
               ],
             ),
           ),

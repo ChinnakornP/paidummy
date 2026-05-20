@@ -17,18 +17,23 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _name = TextEditingController(text: 'Player');
+  final _ref = TextEditingController();
   bool _busy = false;
+  bool _showRefField = false;
 
   @override
   void dispose() {
     _name.dispose();
+    _ref.dispose();
     super.dispose();
   }
 
   Future<void> _enter() async {
     setState(() => _busy = true);
     try {
-      await ref.read(sessionProvider.notifier).createGuest(_name.text);
+      await ref
+          .read(sessionProvider.notifier)
+          .createGuest(_name.text, ref: _ref.text);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -81,6 +86,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         nameController: _name,
                         busy: _busy,
                         onSubmit: _enter,
+                        refController: _ref,
+                        showRef: _showRefField,
+                        onToggleRef: () => setState(
+                          () => _showRefField = !_showRefField,
+                        ),
                       ),
                       const SizedBox(height: 20),
                       Text(

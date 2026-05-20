@@ -35,6 +35,11 @@ type seat struct {
 	Name    string
 	Avatar  string
 	Ready   bool
+	// BotMode short-circuits the per-turn shot clock for this seat so the
+	// server auto-plays their turn within ~1.5s. Toggled either explicitly
+	// via the "bot_takeover" WS message or implicitly after a disconnected
+	// seat misses their first shot clock.
+	BotMode bool
 	client  Sender // nil when disconnected
 }
 
@@ -50,6 +55,11 @@ type Room struct {
 	// Practice rooms run the full ruleset but do NOT settle coins at match
 	// end and are not surfaced to QuickJoin (private to their creator).
 	Practice bool
+	// Password gates Join when non-empty. Stored verbatim — never logged.
+	Password string
+	// TurnTimerSec overrides the default 60 s shot clock per turn. 0 means
+	// use turnTimerDuration.
+	TurnTimerSec int
 
 	mu       sync.Mutex
 	seats    []*seat
@@ -87,6 +97,15 @@ const (
 	turnTimerDuration = 60 * time.Second
 )
 
+// turnTimerOverride returns the per-room shot-clock value, falling back to
+// the package default when no custom value was set at creation time.
+func (r *Room) turnTimerOverride() time.Duration {
+	if r.TurnTimerSec > 0 {
+		return time.Duration(r.TurnTimerSec) * time.Second
+	}
+	return turnTimerDuration
+}
+
 // Hub is the registry of live rooms plus the durable/ephemeral stores.
 type Hub struct {
 	mu    sync.RWMutex
@@ -103,24 +122,51 @@ var (
 	ErrRoomNotFound = errors.New("room not found")
 	ErrRoomFull     = errors.New("room is full")
 	ErrRoomStarted  = errors.New("room already started")
+	ErrBadPassword  = errors.New("invalid room password")
 )
+
+// CreateOpts bundles the room-creation knobs surfaced through the custom-
+// room sheet. Zero values fall back to the documented defaults so callers
+// who only want a public bet-tier room (like QuickJoin) can leave the
+// extras alone.
+type CreateOpts struct {
+	Name         string
+	Password     string
+	MaxPlayers   int
+	TargetScore  int
+	Bet          int
+	TurnTimerSec int
+}
 
 // CreateRoom registers a new open room hosted by hostGuest.
 func (h *Hub) CreateRoom(ctx context.Context, hostGuest, hostName, name string, max, target, bet int) *Room {
+	return h.CreateRoomFull(ctx, hostGuest, hostName, CreateOpts{
+		Name: name, MaxPlayers: max, TargetScore: target, Bet: bet,
+	})
+}
+
+// CreateRoomFull is the extended room constructor used by custom-room
+// creation. It populates password + per-turn timer overrides in addition
+// to the basic fields.
+func (h *Hub) CreateRoomFull(ctx context.Context, hostGuest, hostName string, opts CreateOpts) *Room {
+	max := opts.MaxPlayers
 	if max < 2 || max > 4 {
 		max = 4
 	}
 	rs := game.DefaultRuleSet()
-	if target > 0 {
-		rs.TargetScore = target
+	if opts.TargetScore > 0 {
+		rs.TargetScore = opts.TargetScore
 	}
+	bet := opts.Bet
 	if bet <= 0 {
 		bet = 100 // default stake, like the classic "เดิมพัน 100"
 	}
 	r := &Room{
-		ID: uuid.NewString(), Name: name, MaxPlayers: max,
+		ID: uuid.NewString(), Name: opts.Name, MaxPlayers: max,
 		TargetScore: rs.TargetScore, Bet: bet, Host: hostGuest,
-		rules: rs, scores: map[string]int{},
+		Password:     opts.Password,
+		TurnTimerSec: opts.TurnTimerSec,
+		rules:        rs, scores: map[string]int{},
 		coins: map[string]int64{}, hub: h,
 	}
 	h.mu.Lock()
@@ -143,8 +189,9 @@ func (h *Hub) QuickJoin(ctx context.Context, guestID, guestName string, bet int)
 	var pick *Room
 	for _, r := range h.rooms {
 		r.mu.Lock()
-		// Practice rooms are private to their creator and never matched.
-		open := !r.Practice && r.state == nil && r.Bet == bet && len(r.seats) < r.MaxPlayers
+		// Practice and password-protected rooms are private to their host
+		// and never matched through QuickJoin.
+		open := !r.Practice && r.Password == "" && r.state == nil && r.Bet == bet && len(r.seats) < r.MaxPlayers
 		alreadySeated := false
 		for _, s := range r.seats {
 			if s.GuestID == guestID {
@@ -220,6 +267,23 @@ func (h *Hub) persistRoomMeta(ctx context.Context, r *Room, open bool) {
 	_ = h.store.SaveRoom(ctx, r.ID, meta, open)
 }
 
+// broadcastReferralBonus pushes a one-shot "referral_bonus" envelope to
+// any seat in this room whose guest id matches the referee or referrer.
+// Recipients not currently attached to this room receive the coin credit
+// via their next /me refresh — this just lights up a snackbar if they're
+// here right now.
+func (r *Room) broadcastReferralBonus(referee, referrer uuid.UUID) {
+	payload := map[string]any{
+		"coins_added": db.ReferralBonus,
+		"referee":     referee.String(),
+		"referrer":    referrer.String(),
+	}
+	r.sendTo(referee.String(), "referral_bonus",
+		map[string]any{"role": "referee", "data": payload})
+	r.sendTo(referrer.String(), "referral_bonus",
+		map[string]any{"role": "referrer", "data": payload})
+}
+
 // ensureAvatar populates the seat's Avatar field from Postgres if it's
 // still blank (just-joined seat, or pre-migration row). Best-effort.
 func (r *Room) ensureAvatar(ctx context.Context, guestID string) {
@@ -265,13 +329,24 @@ func (r *Room) ensureCoins(ctx context.Context, guestID string) {
 }
 
 // Join seats a guest (or returns the existing seat). Idempotent per guest.
+// Public rooms accept any password; password-protected rooms require the
+// configured value.
 func (r *Room) Join(guestID, name string) error {
+	return r.JoinWith(guestID, name, "")
+}
+
+// JoinWith is the password-aware seating call. An already-seated guest is
+// allowed back in regardless of password (server keeps their seat).
+func (r *Room) JoinWith(guestID, name, password string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, s := range r.seats {
 		if s.GuestID == guestID {
 			return nil
 		}
+	}
+	if r.Password != "" && r.Password != password {
+		return ErrBadPassword
 	}
 	if r.state != nil {
 		return ErrRoomStarted
@@ -307,6 +382,9 @@ func (r *Room) Attach(c Sender) {
 		}
 	}
 	r.seats[idx].client = c
+	// Reconnect cancels auto-elected bot takeover so the player resumes
+	// control of their own turns.
+	r.seats[idx].BotMode = false
 	gid := c.GuestID()
 	r.mu.Unlock()
 	r.broadcastState()
@@ -360,9 +438,16 @@ func (r *Room) tryAutoStart(ctx context.Context) {
 	}
 }
 
-// armTurnTimer (re)starts the 60s shot clock for the current active player.
-// When it fires, autoPlay performs draw_deck then discards the first held
-// card — never knocks, per the room rule.
+// botTurnInterval is the collapsed shot clock used for bot-mode seats so
+// the round doesn't burn the full per-turn deadline on every auto-played
+// move. Short enough to keep the table moving, long enough that humans
+// can read what happened.
+const botTurnInterval = 1500 * time.Millisecond
+
+// armTurnTimer (re)starts the per-turn shot clock for the current active
+// player. When it fires, autoPlay performs draw_deck then discards the
+// first held card — never knocks, per the room rule. Bot-mode seats use a
+// much shorter window so their turns fast-forward.
 func (r *Room) armTurnTimer(ctx context.Context, d time.Duration) {
 	r.mu.Lock()
 	if r.state == nil || r.state.RoundOver {
@@ -371,6 +456,10 @@ func (r *Room) armTurnTimer(ctx context.Context, d time.Duration) {
 	}
 	if r.turnTimer != nil {
 		r.turnTimer.Stop()
+	}
+	turn := r.state.Turn
+	if turn >= 0 && turn < len(r.seats) && r.seats[turn].BotMode {
+		d = botTurnInterval
 	}
 	r.turnEnd = time.Now().Add(d)
 	r.turnTimer = time.AfterFunc(d, func() { r.autoPlay(ctx) })
@@ -400,6 +489,12 @@ func (r *Room) autoPlay(ctx context.Context) {
 	if turn < 0 || turn >= len(r.seats) {
 		r.mu.Unlock()
 		return
+	}
+	// Auto-elect bot takeover for disconnected seats so subsequent turns
+	// don't keep burning the full shot clock. Reconnect clears this in
+	// Attach.
+	if r.seats[turn].client == nil && !r.seats[turn].BotMode {
+		r.seats[turn].BotMode = true
 	}
 	guestID := r.seats[turn].GuestID
 	phase := r.state.Phase
@@ -517,6 +612,8 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 		r.Detach(guestID)
 	case "chat":
 		r.handleChat(guestID, data)
+	case "bot_takeover":
+		r.handleBotTakeover(guestID, data)
 	case "draw_deck", "draw_discard", "meld", "layoff", "knock", "auto_knock", "discard":
 		r.handleGameAction(ctx, guestID, typ, data)
 	default:
@@ -528,6 +625,27 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 // the tail rather than rejecting the message so the user isn't punished
 // for a long paste.
 const chatMaxLen = 200
+
+// handleBotTakeover flips the per-seat BotMode flag, which short-circuits
+// the shot clock so the server plays the turn quickly on the player's
+// behalf. Idempotent — toggling to the current value is a no-op.
+func (r *Room) handleBotTakeover(guestID string, data json.RawMessage) {
+	var payload struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return
+	}
+	r.mu.Lock()
+	idx := r.seatIndex(guestID)
+	if idx < 0 || r.seats[idx].BotMode == payload.Enabled {
+		r.mu.Unlock()
+		return
+	}
+	r.seats[idx].BotMode = payload.Enabled
+	r.mu.Unlock()
+	r.broadcastState()
+}
 
 // handleChat broadcasts a chat line from the sender to every attached
 // player. Ephemeral — no Postgres persistence. Empty/whitespace-only
@@ -644,7 +762,7 @@ func (r *Room) startRound(ctx context.Context) {
 	}
 	r.snapshot(ctx)
 	r.broadcastState()
-	r.armTurnTimer(ctx, turnTimerDuration)
+	r.armTurnTimer(ctx, r.turnTimerOverride())
 	r.broadcastTurn()
 }
 
@@ -724,7 +842,7 @@ func (r *Room) handleGameAction(ctx context.Context, guestID, typ string, data j
 	// player. That's the one moment we restart the shot clock; during a
 	// player's own draw→meld transitions the existing timer keeps running.
 	if phaseAfter == game.PhaseDraw {
-		r.armTurnTimer(ctx, turnTimerDuration)
+		r.armTurnTimer(ctx, r.turnTimerOverride())
 	}
 	r.broadcastTurn()
 }
@@ -828,6 +946,16 @@ func (r *Room) finishRound(ctx context.Context) {
 					})
 				}
 				_ = r.hub.db.RecordSettlement(ctx, mid, settles)
+				// Best-effort one-shot referral bonus for first-match wins
+				// (winner + losers). Failures here never block the result
+				// broadcast.
+				for id := range d {
+					awarded, ref, err := r.hub.db.MaybeAwardReferral(ctx, id)
+					if err != nil || !awarded {
+						continue
+					}
+					r.broadcastReferralBonus(id, ref)
+				}
 			}
 		}
 		r.mu.Lock()

@@ -11,6 +11,7 @@ class Guest {
     this.stats,
     this.avatar = '🙂',
     this.allowedAvatars = const [],
+    this.refCode = '',
   });
   final String id;
   final String name;
@@ -21,6 +22,9 @@ class Guest {
   final String avatar;
   /// Server-authoritative preset palette. Empty until /me responds.
   final List<String> allowedAvatars;
+  /// Shareable referral handle (first 8 hex of guest id). Empty until /me
+  /// returns the field on older server binaries.
+  final String refCode;
 
   factory Guest.fromJson(Map<String, dynamic> j) => Guest(
     id: j['id'] as String? ?? '',
@@ -37,6 +41,7 @@ class Guest {
     allowedAvatars: ((j['avatars'] as List?) ?? const [])
         .map((e) => e as String)
         .toList(),
+    refCode: j['ref_code'] as String? ?? '',
   );
 }
 

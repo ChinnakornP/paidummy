@@ -13,9 +13,10 @@ class SessionController extends StateNotifier<Guest?> {
   SessionController(this._api) : super(null);
   final ApiClient _api;
 
-  Future<void> createGuest(String name) async {
+  Future<void> createGuest(String name, {String ref = ''}) async {
     state = await _api.createGuest(
       name.trim().isEmpty ? 'Player' : name.trim(),
+      ref: ref.trim(),
     );
   }
 

@@ -15,11 +15,11 @@ class ApiClient {
 
   Uri _u(String path) => Uri.parse('${Env.apiBase}$path');
 
-  Future<Guest> createGuest(String displayName) async {
+  Future<Guest> createGuest(String displayName, {String ref = ''}) async {
     final r = await _c.post(
       _u('/api/v1/guest'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'display_name': displayName}),
+      body: jsonEncode({'display_name': displayName, 'ref': ref}),
     );
     return Guest.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
   }
@@ -35,23 +35,76 @@ class ApiClient {
         .toList();
   }
 
-  Future<String> createRoom(String token, String name, int maxPlayers) async {
+  /// Creates a fully-configurable custom room (password, target score, turn
+  /// timer, etc.) and auto-seats the host. Returns the room id and the
+  /// password the server echoed back (used to render a shareable chip).
+  Future<({String id, String password})> createRoom(
+    String token, {
+    required String name,
+    int maxPlayers = 4,
+    int targetScore = 0,
+    int bet = 0,
+    int turnTimerSec = 0,
+    String password = '',
+  }) async {
     final r = await _c.post(
       _u('/api/v1/rooms'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'name': name, 'max_players': maxPlayers}),
+      body: jsonEncode({
+        'name': name,
+        'max_players': maxPlayers,
+        'target_score': targetScore,
+        'bet': bet,
+        'turn_timer_sec': turnTimerSec,
+        'password': password,
+      }),
     );
-    return (jsonDecode(r.body) as Map<String, dynamic>)['id'] as String;
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'create room failed');
+    }
+    return (
+      id: j['id'] as String,
+      password: (j['password'] as String?) ?? '',
+    );
   }
 
-  Future<void> joinRoom(String token, String roomId) async {
-    await _c.post(
+  /// Seats the guest in [roomId], supplying [password] for locked rooms.
+  /// Throws on 403 (bad password) / 404 / 409.
+  Future<void> joinRoom(
+    String token,
+    String roomId, {
+    String password = '',
+  }) async {
+    final r = await _c.post(
       _u('/api/v1/rooms/$roomId/join'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'password': password}),
+    );
+    if (r.statusCode >= 300) {
+      final j = jsonDecode(r.body) as Map<String, dynamic>;
+      throw Exception((j['error'] as String?) ?? 'join failed');
+    }
+  }
+
+  /// Reads a room's public metadata without joining it. Used by the
+  /// "เข้าด้วยรหัส" flow to show name/locked/seat-count before submitting.
+  Future<Map<String, dynamic>> roomInfo(String token, String roomId) async {
+    final r = await _c.get(
+      _u('/api/v1/rooms/$roomId'),
       headers: {'Authorization': 'Bearer $token'},
     );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'room not found');
+    }
+    return j;
   }
 
   /// Refreshes the authenticated guest (used to surface the live coin balance

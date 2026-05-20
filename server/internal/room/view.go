@@ -11,6 +11,7 @@ type playerPublic struct {
 	Connected bool   `json:"connected"`
 	Coins     int64  `json:"coins"`
 	Avatar    string `json:"avatar,omitempty"`
+	BotMode   bool   `json:"bot_mode,omitempty"`
 }
 
 type meldView struct {
@@ -103,7 +104,7 @@ func (r *Room) viewFor(viewer int) stateView {
 			Seat: i, Name: s.Name, Ready: s.Ready,
 			HandCount: len(gs.Players[i].Hand), Connected: s.client != nil,
 			Coins:  r.coins[s.GuestID],
-			Avatar: s.Avatar,
+			Avatar: s.Avatar, BotMode: s.BotMode,
 		})
 	}
 	if viewer >= 0 && viewer < len(gs.Players) {

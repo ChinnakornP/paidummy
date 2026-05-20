@@ -31,7 +31,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | --- | --- | --- | --- |
 | ✅ 1.1 | In-room text chat + emoji react | Decorative chat button already in `_ChatButton`; server routes per-room broadcasts — needs only a `"chat"` WS message + a panel. | S |
 | 1.2 | Friend list + private invite | Quickplay finds strangers; friends finish more rounds together. New `friends` / `invites` DB tables + REST + lobby sheet. | M |
-| 1.3 | Private / password rooms | Hosting a session for a specific group. Add `password` to room create; gate Join. | S |
+| ✅ 1.3 | Private / password rooms | Hosting a session for a specific group. Add `password` to room create; gate Join. | S |
 | 1.4 | Spectator mode | View-only seat. Reuse `room_state` but with `your_hand: []`; gate action handlers. | M |
 | ✅ 1.5 | Player profile screen | Tap any seat → stats, history, rank. Pure read-side; reuses `MeHandler` + `MatchHistory`. | S |
 
@@ -40,7 +40,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
 | ✅ 2.1 | Rematch button after match end | Currently match ends → back to lobby. Keep players seated with a `rematch` WS message. | S |
-| 2.2 | Room settings (target score / turn timer / dark-knock toggle) | Currently fixed in `DefaultRuleSet`. Surface a few knobs on room create. | S |
+| ✅ 2.2 | Room settings (target score / turn timer / dark-knock toggle) | Currently fixed in `DefaultRuleSet`. Surface a few knobs on room create. | S |
 | 2.3 | Interactive tutorial / onboarding | First-time guest goes through a guided 3-turn demo against a bot. | M |
 | ✅ 2.4 | Practice mode vs bots (no stake) | Solo training; reuses bot infra, just a room kind that doesn't settle coins. | S |
 | 2.5 | "ช่วยคิด" / Suggest-a-move | When stuck, surface one suggested meld / layoff / discard. Extend the auto-knock solver. | M |
@@ -50,7 +50,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
 | 3.1 | Reconnect mid-round | Network drops happen. Server already persists state in Redis; needs a client "reconnecting…" overlay + auto-resume. | M |
-| 3.2 | Disconnect protection (bot takeover) | Today the shot clock auto-discards once but the seat keeps stalling. A "play out as bot" toggle smooths real games. | S |
+| ✅ 3.2 | Disconnect protection (bot takeover) | Today the shot clock auto-discards once but the seat keeps stalling. A "play out as bot" toggle smooths real games. | S |
 | 3.3 | Replay / move log viewer | Stored event stream per match (already partly in `db.SaveRound`). Add a scrubbable viewer dialog. | L |
 | 3.4 | Report player + admin tools | One report button per seat + a small admin endpoint to mute/ban. | M |
 | 3.5 | Anti-collusion heuristics | Background job tracking suspicious patterns (always loses to same player, always picks dummy from same player). | L |
@@ -74,7 +74,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 5.3 | Leaderboards (daily / weekly / all-time) | Read-only ranking by coins won / matches won. SQL view + a lobby sheet. | S |
 | 5.4 | Tournaments / scheduled events | One-shot rooms with prize pool ("ห้อง VIP ทุกวันศุกร์ 20:00"). | L |
 | 5.5 | Watch-ad-for-coins | Optional sink — pair with a real ad SDK later, mock now. | M |
-| 5.6 | Referral bonus | `?ref=<id>` deep link → both parties get coins on the friend's first match. | S |
+| ✅ 5.6 | Referral bonus | `?ref=<id>` deep link → both parties get coins on the friend's first match. | S |
 
 ## 6. Platform / operational
 

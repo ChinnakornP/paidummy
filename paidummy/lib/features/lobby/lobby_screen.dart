@@ -87,13 +87,14 @@ class LobbyScreen extends ConsumerWidget {
                 const LobbySectionHeader(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Material(
-                      color: const Color(0xFF1B4350),
-                      borderRadius: BorderRadius.circular(20),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      _LobbyActionPill(
+                        emoji: '🎯',
+                        label: 'ฝึกซ้อมกับบอท',
+                        sub: 'ไม่เสียเหรียญ',
                         onTap: () async {
                           final g = ref.read(sessionProvider);
                           if (g == null) return;
@@ -109,36 +110,20 @@ class LobbyScreen extends ConsumerWidget {
                             );
                           }
                         },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('🎯 ', style: TextStyle(fontSize: 18)),
-                              Text(
-                                'ฝึกซ้อมกับบอท',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'ไม่เสียเหรียญ',
-                                style: TextStyle(
-                                  color: Color(0xFFB6E8B6),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
-                    ),
+                      _LobbyActionPill(
+                        emoji: '🛠',
+                        label: 'สร้างห้องเอง',
+                        sub: 'กำหนดกติกา + รหัส',
+                        onTap: () => showCustomRoomSheet(context),
+                      ),
+                      _LobbyActionPill(
+                        emoji: '🔑',
+                        label: 'เข้าด้วยรหัส',
+                        sub: 'ห้องส่วนตัวของเพื่อน',
+                        onTap: () => showJoinByCodeDialog(context),
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(
@@ -187,6 +172,63 @@ class LobbyScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Small reusable pill used for the lobby action row (practice / create
+/// custom / join by code).
+class _LobbyActionPill extends StatelessWidget {
+  const _LobbyActionPill({
+    required this.emoji,
+    required this.label,
+    required this.sub,
+    required this.onTap,
+  });
+  final String emoji;
+  final String label;
+  final String sub;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF1B4350),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$emoji ', style: const TextStyle(fontSize: 18)),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      color: Color(0xFFB6E8B6),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

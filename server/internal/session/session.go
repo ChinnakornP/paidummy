@@ -43,13 +43,20 @@ func newToken() (string, error) {
 func cacheKey(token string) string { return "sess:" + token }
 
 // CreateGuest registers a new guest user and an associated session token.
-func (m *Manager) CreateGuest(ctx context.Context, name string) (Guest, error) {
+// If [ref] is non-empty and matches another guest's ref_code, the new guest
+// is wired as that guest's referee — the +500 referral bonus fires later,
+// after the new guest finishes their first match.
+func (m *Manager) CreateGuest(ctx context.Context, name, ref string) (Guest, error) {
 	if name == "" {
 		name = "Player"
 	}
 	g, err := m.db.CreateGuest(ctx, name)
 	if err != nil {
 		return Guest{}, err
+	}
+	_, _ = m.db.EnsureRefCode(ctx, g.ID)
+	if ref != "" {
+		_, _, _ = m.db.SetReferrer(ctx, g.ID, ref)
 	}
 	token, err := newToken()
 	if err != nil {

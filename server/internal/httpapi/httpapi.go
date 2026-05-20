@@ -25,6 +25,7 @@ type RoomAPI interface {
 	AddBot(c *gin.Context)
 	QuickPlay(c *gin.Context)
 	Practice(c *gin.Context)
+	RoomInfo(c *gin.Context)
 }
 
 // Server bundles handler dependencies.
@@ -66,6 +67,7 @@ func (s *Server) Router() *gin.Engine {
 		if s.Rooms != nil {
 			auth.GET("/rooms", s.Rooms.ListOpen)
 			auth.POST("/rooms", s.Rooms.Create)
+			auth.GET("/rooms/:id", s.Rooms.RoomInfo)
 			auth.POST("/rooms/:id/join", s.Rooms.Join)
 			auth.POST("/rooms/:id/bots", s.Rooms.AddBot)
 			auth.POST("/quickplay", s.Rooms.QuickPlay)
@@ -114,12 +116,17 @@ func (s *Server) Router() *gin.Engine {
 
 type createGuestReq struct {
 	DisplayName string `json:"display_name"`
+	Ref         string `json:"ref"`
 }
 
 func (s *Server) createGuest(c *gin.Context) {
 	var req createGuestReq
 	_ = c.ShouldBindJSON(&req)
-	g, err := s.Sessions.CreateGuest(c.Request.Context(), strings.TrimSpace(req.DisplayName))
+	g, err := s.Sessions.CreateGuest(
+		c.Request.Context(),
+		strings.TrimSpace(req.DisplayName),
+		strings.TrimSpace(req.Ref),
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create guest"})
 		return

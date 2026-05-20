@@ -43,7 +43,8 @@ func (a *RESTAdapter) ListOpen(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"rooms": out})
 }
 
-// Create POST /api/v1/rooms
+// Create POST /api/v1/rooms — full custom-room creation with optional
+// password and turn-timer override. Host is auto-seated.
 func (a *RESTAdapter) Create(c *gin.Context) {
 	g, ok := guestFromCtx(c)
 	if !ok {
@@ -51,21 +52,46 @@ func (a *RESTAdapter) Create(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name        string `json:"name"`
-		MaxPlayers  int    `json:"max_players"`
-		TargetScore int    `json:"target_score"`
-		Bet         int    `json:"bet"`
+		Name         string `json:"name"`
+		Password     string `json:"password"`
+		MaxPlayers   int    `json:"max_players"`
+		TargetScore  int    `json:"target_score"`
+		Bet          int    `json:"bet"`
+		TurnTimerSec int    `json:"turn_timer_sec"`
 	}
 	_ = c.ShouldBindJSON(&req)
 	if req.Name == "" {
 		req.Name = g.Name + "'s room"
 	}
-	r := a.hub.CreateRoom(c.Request.Context(), g.ID.String(), g.Name, req.Name, req.MaxPlayers, req.TargetScore, req.Bet)
-	_ = r.Join(g.ID.String(), g.Name)
-	c.JSON(http.StatusOK, gin.H{"id": r.ID, "name": r.Name})
+	// Coin guard for staked rooms mirrors quickplay — never allow creation
+	// at a tier the wallet can't cover the first match.
+	if req.Bet > 0 {
+		coins, err := a.db.Coins(c.Request.Context(), g.ID)
+		if err == nil && coins < int64(req.Bet) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "insufficient coins for this stake",
+				"coins": coins,
+				"need":  req.Bet,
+			})
+			return
+		}
+	}
+	r := a.hub.CreateRoomFull(c.Request.Context(), g.ID.String(), g.Name, CreateOpts{
+		Name: req.Name, Password: req.Password,
+		MaxPlayers: req.MaxPlayers, TargetScore: req.TargetScore,
+		Bet: req.Bet, TurnTimerSec: req.TurnTimerSec,
+	})
+	_ = r.JoinWith(g.ID.String(), g.Name, req.Password)
+	c.JSON(http.StatusOK, gin.H{
+		"id":   r.ID,
+		"name": r.Name,
+		// Echo password back so the host UI can show a shareable chip.
+		"password": req.Password,
+	})
 }
 
-// Join POST /api/v1/rooms/:id/join
+// Join POST /api/v1/rooms/:id/join  body {"password": "..."}
+// Password is optional for public rooms. 403 on bad password.
 func (a *RESTAdapter) Join(c *gin.Context) {
 	g, ok := guestFromCtx(c)
 	if !ok {
@@ -77,11 +103,45 @@ func (a *RESTAdapter) Join(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 		return
 	}
-	if err := r.Join(g.ID.String(), g.Name); err != nil {
+	var req struct {
+		Password string `json:"password"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if err := r.JoinWith(g.ID.String(), g.Name, req.Password); err != nil {
+		if errors.Is(err, ErrBadPassword) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"id": r.ID})
+}
+
+// RoomInfo GET /api/v1/rooms/:id — peek a room's metadata before joining.
+// Used by the "เข้าด้วยรหัส" flow so the client can show name + locked state
+// + seat count without exposing the password.
+func (a *RESTAdapter) RoomInfo(c *gin.Context) {
+	if _, ok := guestFromCtx(c); !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+	r, ok := a.hub.Get(c.Param("id"))
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
+		return
+	}
+	r.mu.Lock()
+	out := gin.H{
+		"id": r.ID, "name": r.Name,
+		"players": len(r.seats), "max": r.MaxPlayers,
+		"target": r.TargetScore, "bet": r.Bet,
+		"locked":   r.Password != "",
+		"started":  r.state != nil,
+		"practice": r.Practice,
+	}
+	r.mu.Unlock()
+	c.JSON(http.StatusOK, out)
 }
 
 // AllowedBets is the public tier ladder shown in the client lobby. Kept
@@ -243,14 +303,16 @@ func MeHandler(database *db.DB) gin.HandlerFunc {
 		if avatar == "" {
 			avatar = db.DefaultAvatar
 		}
+		refCode, _ := database.RefCode(ctx, g.ID)
 		c.JSON(http.StatusOK, gin.H{
-			"id":      g.ID,
-			"name":    g.Name,
-			"coins":   coins,
-			"stats":   stats,
-			"rank":    db.ComputeRank(stats.MatchesWon),
-			"avatar":  avatar,
-			"avatars": db.AllowedAvatars,
+			"id":       g.ID,
+			"name":     g.Name,
+			"coins":    coins,
+			"stats":    stats,
+			"rank":     db.ComputeRank(stats.MatchesWon),
+			"avatar":   avatar,
+			"avatars":  db.AllowedAvatars,
+			"ref_code": refCode,
 		})
 	}
 }

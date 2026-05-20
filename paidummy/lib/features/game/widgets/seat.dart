@@ -199,7 +199,7 @@ class Seat extends StatelessWidget {
             ),
           ),
           // Ready pip (small green tick) on the top-left.
-          if (player.ready && !active)
+          if (player.ready && !active && !player.botMode)
             const Positioned(
               left: 4,
               top: 0,
@@ -207,6 +207,27 @@ class Seat extends StatelessWidget {
                 Icons.check_circle,
                 color: Color(0xFF7FE08A),
                 size: 16,
+              ),
+            ),
+          // Bot-takeover badge — server is auto-playing this seat.
+          if (player.botMode)
+            Positioned(
+              left: 4,
+              top: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3C7A8C),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: const Text(
+                  '🤖',
+                  style: TextStyle(fontSize: 11),
+                ),
               ),
             ),
         ],

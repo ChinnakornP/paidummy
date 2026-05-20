@@ -11,6 +11,7 @@ class PlayerPublic {
     required this.connected,
     this.coins = 0,
     this.avatar = '',
+    this.botMode = false,
   });
   final int seat;
   final String name;
@@ -19,6 +20,9 @@ class PlayerPublic {
   final bool connected;
   final int coins;
   final String avatar;
+  /// True when the server is auto-playing this seat (explicit toggle or
+  /// disconnect-elected). Drives a "🤖" badge on the seat card.
+  final bool botMode;
 
   factory PlayerPublic.fromJson(Map<String, dynamic> j) => PlayerPublic(
     seat: (j['seat'] as num?)?.toInt() ?? 0,
@@ -28,6 +32,7 @@ class PlayerPublic {
     connected: j['connected'] as bool? ?? false,
     coins: (j['coins'] as num?)?.toInt() ?? 0,
     avatar: j['avatar'] as String? ?? '',
+    botMode: j['bot_mode'] as bool? ?? false,
   );
 }
 

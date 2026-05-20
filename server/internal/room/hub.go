@@ -73,6 +73,15 @@ type Room struct {
 	hub *Hub
 }
 
+// Room timing knobs — single source of truth for per-room durations so the
+// values aren't sprinkled through the file.
+const (
+	// turnTimerDuration is the per-turn shot clock. On expiry the server
+	// auto-plays draw_deck → discard (never knocks). Same value used both at
+	// startRound and whenever a discard advances the turn.
+	turnTimerDuration = 60 * time.Second
+)
+
 // Hub is the registry of live rooms plus the durable/ephemeral stores.
 type Hub struct {
 	mu    sync.RWMutex
@@ -298,7 +307,7 @@ func (r *Room) tryAutoStart(ctx context.Context) {
 	}
 }
 
-// armTurnTimer (re)starts the 30s shot clock for the current active player.
+// armTurnTimer (re)starts the 60s shot clock for the current active player.
 // When it fires, autoPlay performs draw_deck then discards the first held
 // card — never knocks, per the room rule.
 func (r *Room) armTurnTimer(ctx context.Context, d time.Duration) {
@@ -527,7 +536,7 @@ func (r *Room) startRound(ctx context.Context) {
 	}
 	r.snapshot(ctx)
 	r.broadcastState()
-	r.armTurnTimer(ctx, 30*time.Second)
+	r.armTurnTimer(ctx, turnTimerDuration)
 	r.broadcastTurn()
 }
 
@@ -566,7 +575,7 @@ func (r *Room) handleGameAction(ctx context.Context, guestID, typ string, data j
 	// player. That's the one moment we restart the shot clock; during a
 	// player's own draw→meld transitions the existing timer keeps running.
 	if phaseAfter == game.PhaseDraw {
-		r.armTurnTimer(ctx, 30*time.Second)
+		r.armTurnTimer(ctx, turnTimerDuration)
 	}
 	r.broadcastTurn()
 }

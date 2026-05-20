@@ -355,7 +355,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 child: _CountdownChip(endMs: view.countdownEndMs),
               ),
 
-            // Per-turn shot clock (30s). On expiry the server auto draws
+            // Per-turn shot clock (60s). On expiry the server auto draws
             // and discards — never knocks.
             if (view.started && view.turnEndMs > 0)
               Align(
@@ -1138,7 +1138,7 @@ class _CountdownChipState extends State<_CountdownChip> {
   }
 }
 
-/// Live per-turn shot-clock chip (30s by default). Self-ticking like the
+/// Live per-turn shot-clock chip (60s by default). Self-ticking like the
 /// pre-start countdown; goes red in the last 10s for urgency. Visible to
 /// everyone so opponents see how long the active player has left.
 class _TurnTimerChip extends StatefulWidget {

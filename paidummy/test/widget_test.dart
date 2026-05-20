@@ -6,7 +6,8 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:paidummy/ui.dart';
+import 'package:paidummy/app.dart';
+import 'package:paidummy/features/home/home_screen.dart';
 
 void main() {
   testWidgets('boots into guest home screen', (tester) async {

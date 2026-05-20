@@ -1,0 +1,28 @@
+/// Lobby-side providers: bet tiers, shop packages, and which room the player
+/// is currently in.
+library;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/index.dart';
+import 'session.dart';
+
+/// Server-defined coin shop menu (`GET /shop/packages`).
+final shopPackagesProvider = FutureProvider.autoDispose<List<CoinPackage>>((
+  ref,
+) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).shopPackages(g.token);
+});
+
+/// Server-defined bet-tier menu (`GET /tiers`). Each `TierInfo` carries the
+/// stake plus a live snapshot of how many players + rooms exist at it.
+final tiersProvider = FutureProvider.autoDispose<List<TierInfo>>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).tiers(g.token);
+});
+
+/// The room the player is currently in (null = in lobby).
+final currentRoomProvider = StateProvider<String?>((ref) => null);

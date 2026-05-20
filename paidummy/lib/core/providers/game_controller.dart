@@ -1,71 +1,12 @@
-/// Riverpod wiring: session, room list, and the WebSocket-driven game
-/// controller. The controller is the only place client state is mutated, and
-/// it never computes game logic — it reduces server events.
+/// WS-driven game controller plus the local hand-ordering notifier and
+/// selection providers. The controller is the only place client state is
+/// mutated, and it never computes game logic — it reduces server events.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'models.dart';
-import 'network.dart';
-
-final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
-
-/// Holds the current guest session (null until a name is entered).
-class SessionController extends StateNotifier<Guest?> {
-  SessionController(this._api) : super(null);
-  final ApiClient _api;
-
-  Future<void> createGuest(String name) async {
-    state = await _api.createGuest(
-      name.trim().isEmpty ? 'Player' : name.trim(),
-    );
-  }
-
-  void signOut() => state = null;
-}
-
-final sessionProvider = StateNotifierProvider<SessionController, Guest?>(
-  (ref) => SessionController(ref.read(apiClientProvider)),
-);
-
-/// Live "me" — wallet + rank + stats from `GET /me`. autoDispose so each
-/// return to the lobby refreshes after a match settles or a shop purchase.
-final meProvider = FutureProvider.autoDispose<Guest>((ref) async {
-  final g = ref.watch(sessionProvider);
-  if (g == null) {
-    return const Guest(id: '', name: '', token: '');
-  }
-  return ref.read(apiClientProvider).me(g.token);
-});
-
-/// My recent match outcomes for the history sheet.
-final coinHistoryProvider = FutureProvider.autoDispose<List<CoinHistoryRow>>((
-  ref,
-) async {
-  final g = ref.watch(sessionProvider);
-  if (g == null) return const [];
-  return ref.read(apiClientProvider).coinHistory(g.token);
-});
-
-/// Server-defined coin shop menu (`GET /shop/packages`).
-final shopPackagesProvider = FutureProvider.autoDispose<List<CoinPackage>>((
-  ref,
-) async {
-  final g = ref.watch(sessionProvider);
-  if (g == null) return const [];
-  return ref.read(apiClientProvider).shopPackages(g.token);
-});
-
-/// Server-defined bet-tier menu (`GET /tiers`). Each `TierInfo` carries the
-/// stake plus a live snapshot of how many players + rooms exist at it.
-final tiersProvider = FutureProvider.autoDispose<List<TierInfo>>((ref) async {
-  final g = ref.watch(sessionProvider);
-  if (g == null) return const [];
-  return ref.read(apiClientProvider).tiers(g.token);
-});
-
-/// The room the player is currently in (null = in lobby).
-final currentRoomProvider = StateProvider<String?>((ref) => null);
+import '../models/index.dart';
+import '../network/index.dart';
 
 /// Currently selected table meld (for layoff "ฝาก"). Null = no meld targeted,
 /// in which case the "ลง" button creates a new meld from selected hand cards.

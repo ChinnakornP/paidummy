@@ -4,14 +4,14 @@
 /// label, a left-of-centre pile (deck-back chip + head + discard top), and
 /// a dashed refresh circle on the right.
 ///
-/// Seats and the player's hand are Flutter overlays (see ui.dart) — the
-/// renderer stays purely server-driven.
+/// Seats and the player's hand are Flutter overlays (see game_screen.dart) —
+/// the renderer stays purely server-driven.
 library;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-import 'models.dart';
+import '../../core/models/index.dart';
 
 class TableGame extends FlameGame {
   GameView view = const GameView();

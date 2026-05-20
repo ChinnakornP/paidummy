@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'ui.dart';
+import 'app.dart';
 
 Future<void> main() async {
   // The whole game is designed for landscape — the felt, the player seats,

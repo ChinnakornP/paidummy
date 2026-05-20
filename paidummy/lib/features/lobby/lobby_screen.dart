@@ -80,10 +80,67 @@ class LobbyScreen extends ConsumerWidget {
                   onWalletTap: () => ref.invalidate(meProvider),
                   onHistory: () => showHistorySheet(context),
                   onShop: () => showShopSheet(context),
+                  onLeaderboard: () => showLeaderboardSheet(context),
                   onSignOut: () =>
                       ref.read(sessionProvider.notifier).signOut(),
                 ),
                 const LobbySectionHeader(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Material(
+                      color: const Color(0xFF1B4350),
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () async {
+                          final g = ref.read(sessionProvider);
+                          if (g == null) return;
+                          try {
+                            final id = await ref
+                                .read(apiClientProvider)
+                                .startPractice(g.token);
+                            ref.read(currentRoomProvider.notifier).state = id;
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('สร้างห้องฝึกไม่ได้: $e')),
+                            );
+                          }
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('🎯 ', style: TextStyle(fontSize: 18)),
+                              Text(
+                                'ฝึกซ้อมกับบอท',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'ไม่เสียเหรียญ',
+                                style: TextStyle(
+                                  color: Color(0xFFB6E8B6),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: tiers.when(
                     loading: () => const Center(

@@ -24,6 +24,7 @@ type RoomAPI interface {
 	Join(c *gin.Context)
 	AddBot(c *gin.Context)
 	QuickPlay(c *gin.Context)
+	Practice(c *gin.Context)
 }
 
 // Server bundles handler dependencies.
@@ -42,6 +43,9 @@ type Server struct {
 
 	DailyStatus gin.HandlerFunc // GET  /api/v1/me/daily        — claim eligibility
 	DailyClaim  gin.HandlerFunc // POST /api/v1/me/daily/claim — credit bonus
+
+	Leaderboard gin.HandlerFunc // GET /api/v1/leaderboard?period=...
+	Avatar      gin.HandlerFunc // PATCH /api/v1/me/avatar
 }
 
 const ctxGuestKey = "guest"
@@ -65,6 +69,7 @@ func (s *Server) Router() *gin.Engine {
 			auth.POST("/rooms/:id/join", s.Rooms.Join)
 			auth.POST("/rooms/:id/bots", s.Rooms.AddBot)
 			auth.POST("/quickplay", s.Rooms.QuickPlay)
+			auth.POST("/practice", s.Rooms.Practice)
 		}
 		if s.History != nil {
 			auth.GET("/matches/history", s.History)
@@ -92,6 +97,12 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.DailyClaim != nil {
 			auth.POST("/me/daily/claim", s.DailyClaim)
+		}
+		if s.Leaderboard != nil {
+			auth.GET("/leaderboard", s.Leaderboard)
+		}
+		if s.Avatar != nil {
+			auth.PATCH("/me/avatar", s.Avatar)
 		}
 	}
 
@@ -152,7 +163,7 @@ func cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return

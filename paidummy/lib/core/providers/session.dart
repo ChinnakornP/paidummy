@@ -53,3 +53,11 @@ final dailyBonusProvider = FutureProvider.autoDispose<DailyBonus?>((ref) async {
   if (g == null) return null;
   return ref.read(apiClientProvider).dailyStatus(g.token);
 });
+
+/// Leaderboard rows, parameterised by period ('alltime' | 'weekly' | 'daily').
+final leaderboardProvider = FutureProvider.autoDispose
+    .family<List<LeaderboardRow>, String>((ref, period) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).leaderboard(g.token, period: period);
+});

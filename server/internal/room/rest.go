@@ -239,13 +239,47 @@ func MeHandler(database *db.DB) gin.HandlerFunc {
 			return
 		}
 		stats, _ := database.LoadStats(ctx, g.ID) // best-effort
+		avatar, _ := database.Avatar(ctx, g.ID)
+		if avatar == "" {
+			avatar = db.DefaultAvatar
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"id":    g.ID,
-			"name":  g.Name,
-			"coins": coins,
-			"stats": stats,
-			"rank":  db.ComputeRank(stats.MatchesWon),
+			"id":      g.ID,
+			"name":    g.Name,
+			"coins":   coins,
+			"stats":   stats,
+			"rank":    db.ComputeRank(stats.MatchesWon),
+			"avatar":  avatar,
+			"avatars": db.AllowedAvatars,
 		})
+	}
+}
+
+// AvatarHandler PATCH /api/v1/me/avatar — sets the guest's avatar to one
+// of the preset palette emojis. 400 on unknown glyph.
+func AvatarHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			Avatar string `json:"avatar"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		if err := database.SetAvatar(c.Request.Context(), g.ID, req.Avatar); err != nil {
+			if errors.Is(err, db.ErrInvalidAvatar) {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":   err.Error(),
+					"allowed": db.AllowedAvatars,
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "set avatar failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"avatar": req.Avatar})
 	}
 }
 
@@ -282,6 +316,23 @@ func RoomHistoryHandler(database *db.DB) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, gin.H{"matches": matches})
 	}
+}
+
+// Practice POST /api/v1/practice — spin up a solo training room (host +
+// 3 bots, no coin settlement). Returns the room id; client navigates to
+// the game screen.
+func (a *RESTAdapter) Practice(c *gin.Context) {
+	g, ok := guestFromCtx(c)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+		return
+	}
+	r, err := a.hub.CreatePractice(c.Request.Context(), g.ID.String(), g.Name)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"room_id": r.ID})
 }
 
 // AddBot POST /api/v1/rooms/:id/bots  body {"count": n}
@@ -358,6 +409,29 @@ func DailyClaimHandler(database *db.DB) gin.HandlerFunc {
 			"coins_added": added,
 			"new_balance": bal,
 		})
+	}
+}
+
+// LeaderboardHandler GET /api/v1/leaderboard?period=alltime|weekly|daily
+// — read-only top-N ranking by coin profit. Defaults to alltime, limit 20.
+func LeaderboardHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if _, ok := guestFromCtx(c); !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		period := db.LeaderboardPeriod(c.DefaultQuery("period", string(db.LeaderboardAllTime)))
+		switch period {
+		case db.LeaderboardAllTime, db.LeaderboardWeekly, db.LeaderboardDaily:
+		default:
+			period = db.LeaderboardAllTime
+		}
+		rows, err := database.Leaderboard(c.Request.Context(), period, 20)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "leaderboard failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"period": period, "rows": rows})
 	}
 }
 

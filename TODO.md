@@ -42,7 +42,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 2.1 | Rematch button after match end | Currently match ends → back to lobby. Keep players seated with a `rematch` WS message. | S |
 | 2.2 | Room settings (target score / turn timer / dark-knock toggle) | Currently fixed in `DefaultRuleSet`. Surface a few knobs on room create. | S |
 | 2.3 | Interactive tutorial / onboarding | First-time guest goes through a guided 3-turn demo against a bot. | M |
-| 2.4 | Practice mode vs bots (no stake) | Solo training; reuses bot infra, just a room kind that doesn't settle coins. | S |
+| ✅ 2.4 | Practice mode vs bots (no stake) | Solo training; reuses bot infra, just a room kind that doesn't settle coins. | S |
 | 2.5 | "ช่วยคิด" / Suggest-a-move | When stuck, surface one suggested meld / layoff / discard. Extend the auto-knock solver. | M |
 
 ## 3. Robustness & fairness
@@ -63,7 +63,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | 4.2 | Card animations (deal, draw, discard, meld lay-down) | Flame already drives the table; animate cards between zones with `Tween`s. | M |
 | ✅ 4.3 | Haptics on action | `HapticFeedback.lightImpact()` on draw/meld/discard. Trivial. | XS |
 | 4.4 | Card / table themes | Cosmetic-shop unlocks. Server stores `selected_skin` per guest; client renders accordingly. | M |
-| 4.5 | Avatar picker (preset images) | 12 preset avatars makes the lobby read social. Today it's just a first-letter circle. | S |
+| ✅ 4.5 | Avatar picker (preset images) | 12 preset avatars makes the lobby read social. Today it's just a first-letter circle. | S |
 
 ## 5. Progression & monetisation
 
@@ -71,7 +71,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | --- | --- | --- | --- |
 | ✅ 5.1 | Daily login bonus + streak | Free coin every 24 h, scaling on consecutive days. `last_claim_at` column + one endpoint. | XS |
 | 5.2 | Daily missions ("เล่น 3 ตา", "น็อคซ้ำสี") | Drives session length. Server-side mission set + progress writes on each match. | M |
-| 5.3 | Leaderboards (daily / weekly / all-time) | Read-only ranking by coins won / matches won. SQL view + a lobby sheet. | S |
+| ✅ 5.3 | Leaderboards (daily / weekly / all-time) | Read-only ranking by coins won / matches won. SQL view + a lobby sheet. | S |
 | 5.4 | Tournaments / scheduled events | One-shot rooms with prize pool ("ห้อง VIP ทุกวันศุกร์ 20:00"). | L |
 | 5.5 | Watch-ad-for-coins | Optional sink — pair with a real ad SDK later, mock now. | M |
 | 5.6 | Referral bonus | `?ref=<id>` deep link → both parties get coins on the friend's first match. | S |

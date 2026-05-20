@@ -10,6 +10,7 @@ class PlayerPublic {
     required this.handCount,
     required this.connected,
     this.coins = 0,
+    this.avatar = '',
   });
   final int seat;
   final String name;
@@ -17,6 +18,7 @@ class PlayerPublic {
   final int handCount;
   final bool connected;
   final int coins;
+  final String avatar;
 
   factory PlayerPublic.fromJson(Map<String, dynamic> j) => PlayerPublic(
     seat: (j['seat'] as num?)?.toInt() ?? 0,
@@ -25,6 +27,7 @@ class PlayerPublic {
     handCount: (j['hand_count'] as num?)?.toInt() ?? 0,
     connected: j['connected'] as bool? ?? false,
     coins: (j['coins'] as num?)?.toInt() ?? 0,
+    avatar: j['avatar'] as String? ?? '',
   );
 }
 

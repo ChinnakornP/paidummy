@@ -57,6 +57,8 @@ func main() {
 		RoomHistory: room.RoomHistoryHandler(database),
 		DailyStatus: room.DailyStatusHandler(database),
 		DailyClaim:  room.DailyClaimHandler(database),
+		Leaderboard: room.LeaderboardHandler(database),
+		Avatar:      room.AvatarHandler(database),
 	}
 
 	httpServer := &http.Server{

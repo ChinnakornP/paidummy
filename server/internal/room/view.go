@@ -10,6 +10,7 @@ type playerPublic struct {
 	HandCount int    `json:"hand_count"`
 	Connected bool   `json:"connected"`
 	Coins     int64  `json:"coins"`
+	Avatar    string `json:"avatar,omitempty"`
 }
 
 type meldView struct {
@@ -81,6 +82,7 @@ func (r *Room) viewFor(viewer int) stateView {
 			v.Players = append(v.Players, playerPublic{
 				Seat: i, Name: s.Name, Ready: s.Ready,
 				Connected: s.client != nil, Coins: r.coins[s.GuestID],
+				Avatar: s.Avatar,
 			})
 		}
 		v.Phase = "waiting"
@@ -100,7 +102,8 @@ func (r *Room) viewFor(viewer int) stateView {
 		v.Players = append(v.Players, playerPublic{
 			Seat: i, Name: s.Name, Ready: s.Ready,
 			HandCount: len(gs.Players[i].Hand), Connected: s.client != nil,
-			Coins: r.coins[s.GuestID],
+			Coins:  r.coins[s.GuestID],
+			Avatar: s.Avatar,
 		})
 	}
 	if viewer >= 0 && viewer < len(gs.Players) {

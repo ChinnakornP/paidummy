@@ -9,6 +9,8 @@ class Guest {
     this.coins = 0,
     this.rank,
     this.stats,
+    this.avatar = '🙂',
+    this.allowedAvatars = const [],
   });
   final String id;
   final String name;
@@ -16,6 +18,9 @@ class Guest {
   final int coins;
   final Rank? rank;
   final GuestStats? stats;
+  final String avatar;
+  /// Server-authoritative preset palette. Empty until /me responds.
+  final List<String> allowedAvatars;
 
   factory Guest.fromJson(Map<String, dynamic> j) => Guest(
     id: j['id'] as String? ?? '',
@@ -28,6 +33,10 @@ class Guest {
     stats: j['stats'] is Map<String, dynamic>
         ? GuestStats.fromJson(j['stats'] as Map<String, dynamic>)
         : null,
+    avatar: j['avatar'] as String? ?? '🙂',
+    allowedAvatars: ((j['avatars'] as List?) ?? const [])
+        .map((e) => e as String)
+        .toList(),
   );
 }
 
@@ -98,6 +107,28 @@ class DailyBonus {
     nextClaimAt: j['next_claim_at'] is String
         ? DateTime.tryParse(j['next_claim_at'] as String)
         : null,
+  );
+}
+
+/// One row of the leaderboard. `wins` and `profit` are computed within the
+/// queried period (alltime / weekly / daily).
+class LeaderboardRow {
+  const LeaderboardRow({
+    required this.guestId,
+    required this.name,
+    required this.wins,
+    required this.profit,
+  });
+  final String guestId;
+  final String name;
+  final int wins;
+  final int profit;
+
+  factory LeaderboardRow.fromJson(Map<String, dynamic> j) => LeaderboardRow(
+    guestId: j['guest_id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    wins: (j['wins'] as num?)?.toInt() ?? 0,
+    profit: (j['profit'] as num?)?.toInt() ?? 0,
   );
 }
 

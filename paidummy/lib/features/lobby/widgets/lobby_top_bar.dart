@@ -17,6 +17,7 @@ class LobbyTopBar extends StatelessWidget {
     required this.onWalletTap,
     required this.onHistory,
     required this.onShop,
+    required this.onLeaderboard,
     required this.onSignOut,
   });
   final String name;
@@ -26,6 +27,7 @@ class LobbyTopBar extends StatelessWidget {
   final VoidCallback onWalletTap;
   final VoidCallback onHistory;
   final VoidCallback onShop;
+  final VoidCallback onLeaderboard;
   final VoidCallback onSignOut;
 
   @override
@@ -95,6 +97,11 @@ class LobbyTopBar extends StatelessWidget {
             emoji: '📜',
             tooltip: 'ประวัติ',
             onTap: onHistory,
+          ),
+          LobbyIconButton(
+            emoji: '🏆',
+            tooltip: 'อันดับ',
+            onTap: onLeaderboard,
           ),
           LobbyIconButton(
             emoji: '🛒',

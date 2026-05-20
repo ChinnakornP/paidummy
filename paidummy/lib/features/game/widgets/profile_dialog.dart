@@ -59,14 +59,19 @@ class ProfileDialog extends ConsumerWidget {
               ),
             ),
             alignment: Alignment.center,
-            child: Text(
-              initial,
-              style: const TextStyle(
-                color: Color(0xFF3D2900),
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            child: player.avatar.isNotEmpty
+                ? Text(
+                    player.avatar,
+                    style: const TextStyle(fontSize: 26, height: 1),
+                  )
+                : Text(
+                    initial,
+                    style: const TextStyle(
+                      color: Color(0xFF3D2900),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -132,6 +137,46 @@ class ProfileDialog extends ConsumerWidget {
                 style: TextStyle(color: Colors.white38, fontSize: 11),
               ),
             ],
+            if (isSelf && (me?.allowedAvatars ?? const []).isNotEmpty) ...[
+              const Divider(color: Colors.white24, height: 22),
+              const Text(
+                'เลือกอวตาร',
+                style: TextStyle(
+                  color: Color(0xFFFFE7A6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final a in me!.allowedAvatars)
+                    _AvatarOption(
+                      glyph: a,
+                      selected: a == me.avatar,
+                      onTap: () async {
+                        final g = ref.read(sessionProvider);
+                        if (g == null) return;
+                        try {
+                          await ref
+                              .read(apiClientProvider)
+                              .setAvatar(g.token, a);
+                          ref.invalidate(meProvider);
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('เปลี่ยนอวตารไม่ได้: $e'),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -145,6 +190,22 @@ class ProfileDialog extends ConsumerWidget {
   }
 
   Widget _row(String label, String value, {bool positive = true}) {
+    return _RowInternal(label: label, value: value, positive: positive);
+  }
+}
+
+class _RowInternal extends StatelessWidget {
+  const _RowInternal({
+    required this.label,
+    required this.value,
+    required this.positive,
+  });
+  final String label;
+  final String value;
+  final bool positive;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -166,6 +227,46 @@ class ProfileDialog extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AvatarOption extends StatelessWidget {
+  const _AvatarOption({
+    required this.glyph,
+    required this.selected,
+    required this.onTap,
+  });
+  final String glyph;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? const Color(0xFFFFD24A).withValues(alpha: 0.25)
+          : Colors.black.withValues(alpha: 0.3),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFFFFD24A)
+                  : Colors.white.withValues(alpha: 0.1),
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Text(glyph, style: const TextStyle(fontSize: 24, height: 1)),
+        ),
       ),
     );
   }

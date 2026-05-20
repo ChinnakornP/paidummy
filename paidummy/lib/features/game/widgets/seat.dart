@@ -115,11 +115,19 @@ class Seat extends StatelessWidget {
                       width: 3,
                     ),
                   ),
-                  child: Icon(
-                    player.connected ? Icons.person : Icons.person_off,
-                    color: Colors.white70,
-                    size: 36,
-                  ),
+                  alignment: Alignment.center,
+                  // Server-provided emoji avatar when present, generic person
+                  // icon as a fall-back (e.g. bots, pre-migration rows).
+                  child: player.avatar.isNotEmpty
+                      ? Text(
+                          player.avatar,
+                          style: const TextStyle(fontSize: 36, height: 1),
+                        )
+                      : Icon(
+                          player.connected ? Icons.person : Icons.person_off,
+                          color: Colors.white70,
+                          size: 36,
+                        ),
                 ),
                 const SizedBox(height: 6),
                 Text(

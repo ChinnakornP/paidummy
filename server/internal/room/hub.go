@@ -33,6 +33,7 @@ type Sender interface {
 type seat struct {
 	GuestID string
 	Name    string
+	Avatar  string
 	Ready   bool
 	client  Sender // nil when disconnected
 }
@@ -46,6 +47,9 @@ type Room struct {
 	TargetScore int
 	Bet         int // coins each loser pays the winner at match end
 	Host        string
+	// Practice rooms run the full ruleset but do NOT settle coins at match
+	// end and are not surfaced to QuickJoin (private to their creator).
+	Practice bool
 
 	mu       sync.Mutex
 	seats    []*seat
@@ -139,7 +143,8 @@ func (h *Hub) QuickJoin(ctx context.Context, guestID, guestName string, bet int)
 	var pick *Room
 	for _, r := range h.rooms {
 		r.mu.Lock()
-		open := r.state == nil && r.Bet == bet && len(r.seats) < r.MaxPlayers
+		// Practice rooms are private to their creator and never matched.
+		open := !r.Practice && r.state == nil && r.Bet == bet && len(r.seats) < r.MaxPlayers
 		alreadySeated := false
 		for _, s := range r.seats {
 			if s.GuestID == guestID {
@@ -161,6 +166,26 @@ func (h *Hub) QuickJoin(ctx context.Context, guestID, guestName string, bet int)
 		return nil, err
 	}
 	return pick, nil
+}
+
+// CreatePractice spins up a solo training room (host + 3 bots, no coin
+// settlement). Returns the seated, ready-to-play room.
+func (h *Hub) CreatePractice(ctx context.Context, guestID, guestName string) (*Room, error) {
+	r := h.CreateRoom(ctx, guestID, guestName, "ฝึกซ้อม", 4, 0, 0)
+	r.mu.Lock()
+	r.Practice = true
+	r.Bet = 0
+	r.mu.Unlock()
+	if err := r.Join(guestID, guestName); err != nil {
+		return nil, err
+	}
+	// Fill with 3 bots so the round can start immediately.
+	for i := 0; i < 3; i++ {
+		if err := r.AddBot(ctx); err != nil {
+			break
+		}
+	}
+	return r, nil
 }
 
 // Get returns a live room by id.
@@ -193,6 +218,32 @@ func (h *Hub) persistRoomMeta(ctx context.Context, r *Room, open bool) {
 		"target": r.TargetScore, "bet": r.Bet,
 	})
 	_ = h.store.SaveRoom(ctx, r.ID, meta, open)
+}
+
+// ensureAvatar populates the seat's Avatar field from Postgres if it's
+// still blank (just-joined seat, or pre-migration row). Best-effort.
+func (r *Room) ensureAvatar(ctx context.Context, guestID string) {
+	r.mu.Lock()
+	idx := r.seatIndex(guestID)
+	if idx < 0 || r.seats[idx].Avatar != "" {
+		r.mu.Unlock()
+		return
+	}
+	r.mu.Unlock()
+	gid, err := uuid.Parse(guestID)
+	if err != nil {
+		return
+	}
+	a, err := r.hub.db.Avatar(ctx, gid)
+	if err != nil || a == "" {
+		a = db.DefaultAvatar
+	}
+	r.mu.Lock()
+	idx = r.seatIndex(guestID)
+	if idx >= 0 {
+		r.seats[idx].Avatar = a
+	}
+	r.mu.Unlock()
 }
 
 // ensureCoins caches a seat's wallet balance from Postgres if not already
@@ -263,6 +314,7 @@ func (r *Room) Attach(c Sender) {
 	// shows coins before the round starts.
 	go func() {
 		r.ensureCoins(context.Background(), gid)
+		r.ensureAvatar(context.Background(), gid)
 		r.broadcastState()
 	}()
 	// Re-evaluate the auto-start countdown now that the seat has filled.
@@ -746,11 +798,12 @@ func (r *Room) finishRound(ctx context.Context) {
 			}
 		}
 		bet := int64(r.Bet)
+		practice := r.Practice
 		r.mu.Unlock()
 
 		coinDeltas := map[string]int{}
 		balances := map[string]int{}
-		if bet > 0 && len(losers) > 0 {
+		if !practice && bet > 0 && len(losers) > 0 {
 			d, b, err := r.hub.db.SettleMatch(ctx, wg, bet, losers)
 			if err == nil {
 				r.mu.Lock()

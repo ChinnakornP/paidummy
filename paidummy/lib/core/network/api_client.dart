@@ -205,6 +205,53 @@ class ApiClient {
     );
   }
 
+  /// Sets the guest's avatar to one of the preset palette glyphs.
+  Future<void> setAvatar(String token, String avatar) async {
+    final r = await _c.patch(
+      _u('/api/v1/me/avatar'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'avatar': avatar}),
+    );
+    if (r.statusCode >= 300) {
+      final j = jsonDecode(r.body) as Map<String, dynamic>;
+      throw Exception((j['error'] as String?) ?? 'set avatar failed');
+    }
+  }
+
+  /// Spins up a solo training room (host + 3 bots) that doesn't settle
+  /// coins. Returns the new room id.
+  Future<String> startPractice(String token) async {
+    final r = await _c.post(
+      _u('/api/v1/practice'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'practice failed');
+    }
+    return j['room_id'] as String;
+  }
+
+  /// Top-N players ranked by coin profit. [period] is one of
+  /// 'alltime' | 'weekly' | 'daily'; unrecognised values fall back to alltime
+  /// server-side.
+  Future<List<LeaderboardRow>> leaderboard(
+    String token, {
+    String period = 'alltime',
+  }) async {
+    final r = await _c.get(
+      _u('/api/v1/leaderboard?period=$period'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['rows'] as List?) ?? const [])
+        .map((e) => LeaderboardRow.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<void> addBots(String token, String roomId, int count) async {
     await _c.post(
       _u('/api/v1/rooms/$roomId/bots'),

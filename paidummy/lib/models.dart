@@ -217,6 +217,15 @@ class PlayerPublic {
   );
 }
 
+/// Transient penalty notification surfaced to the affected player.
+/// `reason` is "full" (ทิ้งเต็ม — discarder pays) or "dummy" (ทิ้งดัมมี่ —
+/// the previous discarder pays after an opponent picks it up).
+class PenaltyToast {
+  const PenaltyToast({required this.points, required this.reason});
+  final int points;
+  final String reason;
+}
+
 class MeldView {
   const MeldView({
     required this.id,
@@ -258,7 +267,10 @@ class GameView {
     this.headCard = '',
     this.matchScores = const {},
     this.allowed = const [],
+    this.canAutoKnock = false,
     this.lastError,
+    this.lastActionPoints,
+    this.lastPenalty,
     this.roundResult,
     this.matchResult,
     this.selected = const {},
@@ -281,7 +293,19 @@ class GameView {
   final String headCard;
   final Map<String, int> matchScores;
   final List<String> allowed;
+  /// True iff the server's solver can find a going-out partition of the
+  /// local player's hand right now (`PhaseMeld`, viewer's turn). The "นอค"
+  /// button is enabled solely off this flag — clicking it sends
+  /// `auto_knock` and the server lays melds + layoffs + knock atomically.
+  final bool canAutoKnock;
   final String? lastError;
+  /// Most recent per-action point gain (e.g. from a meld/layoff/pickup).
+  /// One-shot: the UI consumes the value once, then `clearActionPoints` nils
+  /// it so the next gain triggers a fresh listener.
+  final int? lastActionPoints;
+  /// Most recent ทิ้งเต็ม / ทิ้งดัมมี่ penalty pushed to this seat. One-shot,
+  /// cleared by `clearPenalty`.
+  final PenaltyToast? lastPenalty;
   final Map<String, dynamic>? roundResult;
   final Map<String, dynamic>? matchResult;
 
@@ -308,8 +332,13 @@ class GameView {
     String? headCard,
     Map<String, int>? matchScores,
     List<String>? allowed,
+    bool? canAutoKnock,
     String? lastError,
     bool clearError = false,
+    int? lastActionPoints,
+    bool clearActionPoints = false,
+    PenaltyToast? lastPenalty,
+    bool clearPenalty = false,
     Map<String, dynamic>? roundResult,
     Map<String, dynamic>? matchResult,
     Set<String>? selected,
@@ -332,7 +361,14 @@ class GameView {
       headCard: headCard ?? this.headCard,
       matchScores: matchScores ?? this.matchScores,
       allowed: allowed ?? this.allowed,
+      canAutoKnock: canAutoKnock ?? this.canAutoKnock,
       lastError: clearError ? null : (lastError ?? this.lastError),
+      lastActionPoints: clearActionPoints
+          ? null
+          : (lastActionPoints ?? this.lastActionPoints),
+      lastPenalty: clearPenalty
+          ? null
+          : (lastPenalty ?? this.lastPenalty),
       roundResult: roundResult ?? this.roundResult,
       matchResult: matchResult ?? this.matchResult,
       selected: selected ?? this.selected,
@@ -370,6 +406,7 @@ class GameView {
       matchScores: ((j['match_scores'] as Map?) ?? const {}).map(
         (k, v) => MapEntry(k as String, (v as num).toInt()),
       ),
+      canAutoKnock: j['can_auto_knock'] as bool? ?? false,
       selected: const {},
     );
   }

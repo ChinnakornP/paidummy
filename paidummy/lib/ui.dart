@@ -72,53 +72,343 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF12313B),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Pai Dummy',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'ไพ่ดัมมี่ — Thai Dummy',
-                style: TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 24),
-              Padding(
+      // Painted background carries the entire game look — no asset file
+      // needed. Stack layers: felt → vignette → drifting suits → entry card.
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _FeltBackground()),
+          // Decorative card-suit motifs scattered in the corners; they sit
+          // behind the entry card and are intentionally low-contrast so they
+          // never compete with the input controls.
+          const Positioned(
+            left: 20,
+            top: 60,
+            child: _FloatingSuit(glyph: '♠', color: Color(0x331A1A1A), size: 110),
+          ),
+          const Positioned(
+            right: 24,
+            top: 110,
+            child: _FloatingSuit(glyph: '♥', color: Color(0x33D63333), size: 96),
+          ),
+          const Positioned(
+            left: 36,
+            bottom: 70,
+            child: _FloatingSuit(glyph: '♦', color: Color(0x33D63333), size: 92),
+          ),
+          const Positioned(
+            right: 40,
+            bottom: 110,
+            child: _FloatingSuit(glyph: '♣', color: Color(0x331A1A1A), size: 100),
+          ),
+          // Centre column: title block + entry card + footer credit.
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: TextField(
-                  controller: _name,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Display name',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    border: OutlineInputBorder(),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const _HomeLogo(),
+                      const SizedBox(height: 28),
+                      _EntryCard(
+                        nameController: _name,
+                        busy: _busy,
+                        onSubmit: _enter,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'เล่นเร็ว · เดิมพันได้ · ฟรีไม่ต้องสมัคร',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontSize: 12,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _busy ? null : _enter,
-                child: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Play as guest'),
-              ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Painted felt: radial green centre with a maroon vignette so the screen
+/// reads as "card table from above". No asset image required.
+class _FeltBackground extends StatelessWidget {
+  const _FeltBackground();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 1.1,
+          colors: [
+            Color(0xFF1B6A4A), // bright felt centre
+            Color(0xFF0D4733), // deeper felt
+            Color(0xFF2A1212), // outer maroon vignette
+          ],
+          stops: [0.0, 0.55, 1.0],
+        ),
+      ),
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _FeltSheenPainter(),
+      ),
+    );
+  }
+}
+
+/// Subtle diagonal sheen on top of the felt to suggest a light source — keeps
+/// the painted background from looking flat.
+class _FeltSheenPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withValues(alpha: 0.06),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+class _FloatingSuit extends StatelessWidget {
+  const _FloatingSuit({
+    required this.glyph,
+    required this.color,
+    required this.size,
+  });
+  final String glyph;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Text(
+        glyph,
+        style: TextStyle(
+          color: color,
+          fontSize: size,
+          height: 1,
+          shadows: const [
+            Shadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeLogo extends StatelessWidget {
+  const _HomeLogo();
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // "ไพ่ดัมมี่" — the Thai title sits above the English wordmark with a
+        // warm gold gradient that mirrors the in-game self-seat palette.
+        ShaderMask(
+          shaderCallback: (b) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFE7A6), Color(0xFFC89A48)],
+          ).createShader(b),
+          child: const Text(
+            'ไพ่ดัมมี่',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 52,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+              shadows: [
+                Shadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
           ),
         ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFC89A48).withValues(alpha: 0.5),
+            ),
+          ),
+          child: const Text(
+            'PAI DUMMY · THAI RUMMY',
+            style: TextStyle(
+              color: Color(0xFFFFE7A6),
+              fontSize: 11,
+              letterSpacing: 2.4,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EntryCard extends StatelessWidget {
+  const _EntryCard({
+    required this.nameController,
+    required this.busy,
+    required this.onSubmit,
+  });
+  final TextEditingController nameController;
+  final bool busy;
+  final Future<void> Function() onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xCC0F2E22), Color(0xCC061A12)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFC89A48).withValues(alpha: 0.45),
+          width: 1.5,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black54, blurRadius: 24, offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'ชื่อผู้เล่น',
+              style: TextStyle(
+                color: Color(0xFFFFE7A6),
+                fontSize: 13,
+                letterSpacing: 1.0,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextField(
+            controller: nameController,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            cursorColor: const Color(0xFFFFE7A6),
+            decoration: InputDecoration(
+              hintText: 'ตั้งชื่อให้เพื่อนรู้จัก',
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+              filled: true,
+              fillColor: Colors.black.withValues(alpha: 0.35),
+              prefixIcon: const Icon(Icons.person_outline,
+                  color: Color(0xFFFFE7A6)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFFFD24A), width: 1.6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Primary CTA: gold gradient, glowing when active.
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: busy
+                  ? null
+                  : const [
+                      BoxShadow(color: Color(0x66FFD24A), blurRadius: 16),
+                    ],
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFFFD24A), Color(0xFFC8932A)],
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: busy ? null : () => onSubmit(),
+                child: SizedBox(
+                  height: 52,
+                  child: Center(
+                    child: busy
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              valueColor: AlwaysStoppedAnimation(
+                                Color(0xFF1A1A1A),
+                              ),
+                            ),
+                          )
+                        : const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.play_arrow_rounded,
+                                  color: Color(0xFF1A1A1A), size: 26),
+                              SizedBox(width: 4),
+                              Text(
+                                'เข้าสู่เกม',
+                                style: TextStyle(
+                                  color: Color(0xFF1A1A1A),
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              'เล่นแบบผู้เยือน · ไม่ต้องสมัคร',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 11,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -311,6 +601,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         ).showSnackBar(SnackBar(content: Text(next.lastError!)));
         ctrl.clearError();
       }
+      if (next.lastActionPoints != null &&
+          next.lastActionPoints != prev?.lastActionPoints) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF2A6E3A),
+            duration: const Duration(seconds: 2),
+            content: Text(
+              '+${next.lastActionPoints} แต้ม',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        );
+        ctrl.clearActionPoints();
+      }
+      if (next.lastPenalty != null && next.lastPenalty != prev?.lastPenalty) {
+        final p = next.lastPenalty!;
+        final label = p.reason == 'full' ? 'ทิ้งเต็ม' : 'ทิ้งดัมมี่';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFA42B72),
+            duration: const Duration(seconds: 3),
+            content: Text(
+              '-${p.points} แต้ม ($label)',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        );
+        ctrl.clearPenalty();
+      }
       final rr = next.matchResult ?? next.roundResult;
       if (rr != null &&
           (prev?.roundResult != next.roundResult ||
@@ -336,6 +661,15 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       for (final p in view.players)
         if (p.seat != view.yourSeat) p,
     ]..sort((a, b) => a.seat.compareTo(b.seat));
+    PlayerPublic? selfPlayer;
+    if (view.yourSeat >= 0) {
+      for (final p in view.players) {
+        if (p.seat == view.yourSeat) {
+          selfPlayer = p;
+          break;
+        }
+      }
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF12313B),
@@ -442,6 +776,20 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         ? null
                         : id;
                   },
+                ),
+              ),
+
+            // Self seat — always pinned at the bottom-left, above the hand
+            // fan so the local player has visible identity (name, coins,
+            // hand count) matching the opponent cards. Uses a warm gold
+            // palette to set self apart from the opponent colour pool.
+            if (selfPlayer != null)
+              Align(
+                alignment: const Alignment(-0.92, 0.55),
+                child: _Seat(
+                  player: selfPlayer,
+                  active: view.isMyTurn,
+                  palette: _kSelfSeatPalette,
                 ),
               ),
 
@@ -651,6 +999,13 @@ const _kSeatPalettes = [
   ),
 ];
 
+// Self seat uses a warm gold palette so the local player can pick their own
+// card out of the line-up at a glance, distinct from any opponent colour.
+const _kSelfSeatPalette = _SeatPalette(
+  [Color(0xFFC8923A), Color(0xFF8E6420)],
+  [Color(0xFFFFE7A6), Color(0xFFC89A48)],
+);
+
 class _RoundIconButton extends StatelessWidget {
   const _RoundIconButton({required this.icon, required this.onTap});
   final IconData icon;
@@ -706,7 +1061,23 @@ class _HandAndControls extends ConsumerWidget {
     }
     if (view.phase == 'draw') {
       // Primary action when your turn opens: draw a card.
-      final target = ref.watch(selectedDiscardCardProvider);
+      final pilePicked = ref.watch(selectedDiscardCardsProvider);
+      // Compute target = the deepest selected pile card (smallest index in
+      // view.discardPile). The remaining selected pile cards join the meld.
+      String? target;
+      var deepest = -1;
+      for (final c in pilePicked) {
+        final idx = view.discardPile.indexOf(c);
+        if (idx != -1 && (deepest == -1 || idx < deepest)) {
+          deepest = idx;
+          target = c;
+        }
+      }
+      final pileSupport = pilePicked.where((c) => c != target).toList();
+      final supportingCards = [...pileSupport, ...view.selected];
+      // เก็บ needs at least one pile card (target) + enough supporting cards
+      // to form a 3-card meld with the target.
+      final canPickup = target != null && supportingCards.length >= 2;
       return [
         _GameButton(
           icon: Icons.style,
@@ -717,17 +1088,19 @@ class _HandAndControls extends ConsumerWidget {
         ),
         _GameButton(
           icon: Icons.south,
-          // "เก็บ" picks the tapped discard card (or the top if none tapped)
-          // and melds it with ≥2 selected hand cards. Server pulls newer
-          // cards into hand if the target is deep in the pile.
+          // "เก็บ" picks one or more cards from the discard pile (deepest =
+          // target) plus selected hand cards. Cards above the target that
+          // weren't picked end up in the player's hand as extras.
           label: 'เก็บ',
           colors: const [Color(0xFF9A9A9A), Color(0xFF6A6A6A)],
-          onTap: (view.discardPile.isEmpty || view.selected.length < 2)
-              ? null
-              : () {
-                  ctrl.drawDiscard(view.selected.toList(), targetCard: target);
-                  ref.read(selectedDiscardCardProvider.notifier).state = null;
-                },
+          onTap: canPickup
+              ? () {
+                  ctrl.drawDiscard(supportingCards, targetCard: target);
+                  ref.read(selectedDiscardCardsProvider.notifier).state =
+                      const {};
+                  ctrl.clearSelection();
+                }
+              : null,
         ),
       ];
     }
@@ -735,7 +1108,11 @@ class _HandAndControls extends ConsumerWidget {
     final selectedMeld = ref.watch(selectedMeldProvider);
     final selN = view.selected.length;
     final canDiscard = selN == 1;
-    final canKnock = selN == 1 && view.yourHand.length == 1;
+    // Auto-knock: enabled the moment the server's solver finds any going-out
+    // partition of the local hand. The classic manual knock (1 selected card
+    // and hand-size 1) still works through the same button.
+    final canManualKnock = selN == 1 && view.yourHand.length == 1;
+    final canKnock = view.canAutoKnock || canManualKnock;
     final canNewMeld = selectedMeld == null && selN >= 3;
     final canLayoff = selectedMeld != null && selN >= 1;
     return [
@@ -768,7 +1145,18 @@ class _HandAndControls extends ConsumerWidget {
         icon: Icons.bolt,
         label: 'น็อค',
         colors: const [Color(0xFFE060A8), Color(0xFFA42B72)],
-        onTap: canKnock ? () => ctrl.knock(view.selected.first) : null,
+        onTap: canKnock
+            ? () {
+                // Prefer auto-knock when the server says a plan exists; only
+                // fall through to manual knock if the player has narrowed the
+                // hand to 1 card themselves.
+                if (view.canAutoKnock) {
+                  ctrl.autoKnock();
+                } else {
+                  ctrl.knock(view.selected.first);
+                }
+              }
+            : null,
         highlight: canKnock,
       ),
     ];
@@ -1502,7 +1890,18 @@ class _CenterPile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pile = view.discardPile;
-    final selected = ref.watch(selectedDiscardCardProvider);
+    final selected = ref.watch(selectedDiscardCardsProvider);
+    // Identify the target (deepest selected pile card) so it can be rendered
+    // with a stronger "เป้าหมาย" highlight.
+    String? target;
+    var deepest = -1;
+    for (final c in selected) {
+      final idx = pile.indexOf(c);
+      if (idx != -1 && (deepest == -1 || idx < deepest)) {
+        deepest = idx;
+        target = c;
+      }
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
@@ -1524,10 +1923,12 @@ class _CenterPile extends ConsumerWidget {
               pile: pile,
               headCard: view.headCard,
               selected: selected,
+              target: target,
               onTap: (card) {
-                final cur = ref.read(selectedDiscardCardProvider);
-                ref.read(selectedDiscardCardProvider.notifier).state =
-                    cur == card ? null : card;
+                final cur = ref.read(selectedDiscardCardsProvider);
+                final next = Set<String>.from(cur);
+                if (!next.add(card)) next.remove(card);
+                ref.read(selectedDiscardCardsProvider.notifier).state = next;
               },
             ),
           ],
@@ -1544,11 +1945,13 @@ class _DiscardRow extends StatelessWidget {
     required this.pile,
     required this.headCard,
     required this.selected,
+    required this.target,
     required this.onTap,
   });
   final List<String> pile;
   final String headCard; // marked with 👑 if present in the pile
-  final String? selected;
+  final Set<String> selected;
+  final String? target; // deepest selected pile card — pile truncates here
   final void Function(String card) onTap;
 
   static const _cardW = 50.0;
@@ -1570,12 +1973,13 @@ class _DiscardRow extends StatelessWidget {
           for (var i = 0; i < n; i++)
             Positioned(
               left: i * step,
-              top: selected == pile[i] ? -6 : 4,
+              top: selected.contains(pile[i]) ? -6 : 4,
               child: GestureDetector(
                 onTap: () => onTap(pile[i]),
                 child: _PileFaceCard(
                   label: pile[i],
-                  highlight: selected == pile[i],
+                  highlight: selected.contains(pile[i]),
+                  isTarget: pile[i] == target,
                   isHead: pile[i] == headCard,
                 ),
               ),
@@ -1593,10 +1997,12 @@ class _PileFaceCard extends StatelessWidget {
   const _PileFaceCard({
     required this.label,
     this.highlight = false,
+    this.isTarget = false,
     this.isHead = false,
   });
   final String label;
   final bool highlight;
+  final bool isTarget;
   final bool isHead;
 
   @override
@@ -1612,18 +2018,31 @@ class _PileFaceCard extends StatelessWidget {
       'S' => '♠',
       _ => '♣',
     };
+    // The target card (deepest selected) gets a stronger orange treatment so
+    // the player can tell at a glance which card the pickup truncates at —
+    // separate from the lighter "also-included" highlight for other picks.
+    final fill = isTarget
+        ? const Color(0xFFFFE0B5)
+        : highlight
+        ? const Color(0xFFFFF8D8)
+        : Colors.white;
+    final borderColor = isTarget
+        ? const Color(0xFFFF8A30)
+        : highlight
+        ? const Color(0xFFFFD24A)
+        : const Color(0xFFCCCCCC);
+    final borderWidth = isTarget ? 3.0 : (highlight ? 2.5 : 1.0);
     final card = Container(
       width: 50,
       height: 70,
       decoration: BoxDecoration(
-        color: highlight ? const Color(0xFFFFF8D8) : Colors.white,
+        color: fill,
         borderRadius: BorderRadius.circular(5),
-        border: Border.all(
-          color: highlight ? const Color(0xFFFFD24A) : const Color(0xFFCCCCCC),
-          width: highlight ? 2.5 : 1,
-        ),
+        border: Border.all(color: borderColor, width: borderWidth),
         boxShadow: [
-          if (highlight)
+          if (isTarget)
+            const BoxShadow(color: Color(0xCCFF8A30), blurRadius: 14)
+          else if (highlight)
             const BoxShadow(color: Color(0xAAFFD24A), blurRadius: 12),
           const BoxShadow(
             color: Colors.black45,
@@ -1741,19 +2160,34 @@ class _MeldsOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Group melds by owner so each player's exposed cards line up on one
+    // horizontal row — e.g. owner 0's row reads "AAA 234 567" left-to-right,
+    // owner 1's row sits below as "KKK AKQJ10". Rows stack by owner index.
+    final byOwner = <int, List<MeldView>>{};
+    for (final m in melds) {
+      byOwner.putIfAbsent(m.owner, () => <MeldView>[]).add(m);
+    }
+    final owners = byOwner.keys.toList()..sort();
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 460),
+      constraints: const BoxConstraints(maxWidth: 520),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final m in melds)
+          for (final o in owners)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: _MeldRow(
-                meld: m,
-                selected: m.id == selectedId,
-                onTap: () => onTap(m.id),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final m in byOwner[o]!)
+                    _MeldRow(
+                      meld: m,
+                      selected: m.id == selectedId,
+                      onTap: () => onTap(m.id),
+                    ),
+                ],
               ),
             ),
         ],

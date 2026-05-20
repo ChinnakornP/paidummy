@@ -161,6 +161,55 @@ func TestDrawDiscardTargetWithExtras(t *testing.T) {
 	}
 }
 
+// TestDrawDiscardUsesAboveTargetCards: the user's "10A29 / hand 8" case —
+// picking 10 deep in the pile combined with 9 (which sits above 10 in the
+// pile) and 8 (from hand) forms a valid 10-9-8 run. The remaining above-
+// target cards (A and 2) fall into the hand as extras.
+func TestDrawDiscardUsesAboveTargetCards(t *testing.T) {
+	e := Engine{}
+	rs := DefaultRuleSet()
+	gs, _, _ := e.Start([]string{"A", "B"}, rs, 21)
+
+	gs.FirstMove = false
+	gs.Turn = 0
+	gs.Phase = PhaseDraw
+	// Pile oldest→newest: TS (10♠), AD, 2C, 9S.
+	gs.DiscardPile = cards("TS", "AD", "2C", "9S")
+	gs.Players[0].Hand = cards("8S", "KH")
+
+	_, err := e.ApplyAction(gs, 0, Action{
+		Type:  ActDrawDiscard,
+		Card:  MustCard("TS"),
+		Cards: cards("9S", "8S"), // 9S from pile-above, 8S from hand
+	})
+	if err != nil {
+		t.Fatalf("pickup with above-target card failed: %v", err)
+	}
+	if len(gs.Melds) != 1 || len(gs.Melds[0].Cards) != 3 {
+		t.Fatalf("expected 8-9-10♠ meld, got %v", gs.Melds)
+	}
+	if gs.Melds[0].Kind != MeldRun {
+		t.Fatalf("expected a run, got %v", gs.Melds[0].Kind)
+	}
+	// Pile drained: target + above all left it.
+	if len(gs.DiscardPile) != 0 {
+		t.Fatalf("discard should be empty, got %v", gs.DiscardPile)
+	}
+	// Hand: started [8S, KH], -8S used in meld, +AD+2C extras → [KH, AD, 2C].
+	if len(gs.Players[0].Hand) != 3 {
+		t.Fatalf("hand len = %d, want 3", len(gs.Players[0].Hand))
+	}
+	hand := map[Card]bool{}
+	for _, c := range gs.Players[0].Hand {
+		hand[c] = true
+	}
+	for _, want := range cards("KH", "AD", "2C") {
+		if !hand[want] {
+			t.Errorf("hand should contain %s, got %v", want, gs.Players[0].Hand)
+		}
+	}
+}
+
 // TestDrawDiscardTargetNotInPile: picking a card not present errors out.
 func TestDrawDiscardTargetNotInPile(t *testing.T) {
 	e := Engine{}
@@ -260,5 +309,64 @@ func TestIsSpeto(t *testing.T) {
 	}
 	if MustCard("2D").IsSpeto(rs) {
 		t.Error("2D must not be speto")
+	}
+}
+
+// TestDiscardFullPenalty: a player discards a card that could've been laid
+// off onto a table meld. The discarder's DumpPenalty accumulator should
+// bump by rs.DumpPenalty.
+func TestDiscardFullPenalty(t *testing.T) {
+	e := Engine{}
+	rs := DefaultRuleSet()
+	gs, _, _ := e.Start([]string{"A", "B"}, rs, 21)
+	gs.FirstMove = false
+	gs.Turn = 0
+	gs.Phase = PhaseMeld
+	m, _ := NewMeld(gs.nextMeldID(), cards("5D", "6D", "7D"), 1, rs)
+	gs.Melds = []Meld{m}
+	gs.Players[0].Hand = cards("4D", "9C")
+
+	_, err := e.ApplyAction(gs, 0, Action{Type: ActDiscard, Card: MustCard("4D")})
+	if err != nil {
+		t.Fatalf("discard errored: %v", err)
+	}
+	if got := gs.DumpPenalties[0]; got != rs.DumpPenalty {
+		t.Fatalf("DumpPenalties[0] = %d, want %d", got, rs.DumpPenalty)
+	}
+}
+
+// TestDiscardDummyPenalty: player 0 discards 8S, then player 1 picks it up
+// via draw_discard to form 6S-7S-8S. Player 0 (the original discarder) gets
+// the ทิ้งดัมมี่ penalty.
+func TestDiscardDummyPenalty(t *testing.T) {
+	e := Engine{}
+	rs := DefaultRuleSet()
+	gs, _, _ := e.Start([]string{"A", "B"}, rs, 21)
+	gs.FirstMove = false
+	gs.Turn = 0
+	gs.Phase = PhaseMeld
+	gs.Players[0].Hand = cards("8S", "KH")
+	gs.Players[1].Hand = cards("6S", "7S", "AC")
+
+	if _, err := e.ApplyAction(gs, 0, Action{Type: ActDiscard, Card: MustCard("8S")}); err != nil {
+		t.Fatalf("p0 discard: %v", err)
+	}
+	if gs.DumpPenalties[0] != 0 {
+		t.Fatalf("p0 should not yet have full penalty, got %d", gs.DumpPenalties[0])
+	}
+	_, err := e.ApplyAction(gs, 1, Action{
+		Type:  ActDrawDiscard,
+		Card:  MustCard("8S"),
+		Cards: cards("6S", "7S"),
+	})
+	if err != nil {
+		t.Fatalf("p1 draw_discard: %v", err)
+	}
+	if gs.DumpPenalties[0] != rs.DumpPenalty {
+		t.Fatalf("p0 should owe dummy penalty %d, got %d",
+			rs.DumpPenalty, gs.DumpPenalties[0])
+	}
+	if gs.DumpPenalties[1] != 0 {
+		t.Fatalf("p1 should owe nothing, got %d", gs.DumpPenalties[1])
 	}
 }

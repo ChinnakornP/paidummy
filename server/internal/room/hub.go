@@ -377,8 +377,9 @@ func (r *Room) autoPlay(ctx context.Context) {
 }
 
 // evaluateCountdown re-decides the auto-start timing for the current seat
-// count: 10s with 2–3 players, 5s the moment the table fills. It's
-// idempotent (calling repeatedly with the same conditions is a no-op).
+// count: 45s while we wait for more players to join, collapsing to 5s the
+// moment the table fills so a full room doesn't sit idle. Idempotent —
+// calling repeatedly with the same conditions is a no-op.
 func (r *Room) evaluateCountdown(ctx context.Context) {
 	r.mu.Lock()
 	if r.state != nil {
@@ -401,9 +402,11 @@ func (r *Room) evaluateCountdown(ctx context.Context) {
 			r.armCountdown(ctx, 5*time.Second)
 		}
 	default:
-		// 2–3 players: arm a 10s window if not already counting down.
+		// At/above MinPlayers but room still has space — give incoming
+		// players 45s to join before starting. Only arm if no timer is
+		// already running (so each new seat doesn't reset the clock).
 		if !timerArmed {
-			r.armCountdown(ctx, 10*time.Second)
+			r.armCountdown(ctx, 45*time.Second)
 		}
 	}
 }
@@ -459,7 +462,7 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 		r.handleReady(ctx, guestID)
 	case "leave":
 		r.Detach(guestID)
-	case "draw_deck", "draw_discard", "meld", "layoff", "knock", "discard":
+	case "draw_deck", "draw_discard", "meld", "layoff", "knock", "auto_knock", "discard":
 		r.handleGameAction(ctx, guestID, typ, data)
 	default:
 		r.sendTo(guestID, "error", map[string]string{"message": "unknown message type"})
@@ -554,16 +557,57 @@ func (r *Room) handleGameAction(ctx context.Context, guestID, typ string, data j
 		r.sendTo(guestID, "error", map[string]string{"message": err.Error()})
 		return
 	}
+	beforePts := sumOwnedMeldPoints(r.state, idx)
+	beforeDumps := snapshotDumpPenalties(r.state)
 	_, err = r.engine.ApplyAction(r.state, idx, act)
 	if err != nil {
 		r.mu.Unlock()
 		r.sendTo(guestID, "error", map[string]string{"message": err.Error()})
 		return
 	}
+	deltaPts := sumOwnedMeldPoints(r.state, idx) - beforePts
+	afterDumps := snapshotDumpPenalties(r.state)
+	// Identify any per-seat dump-penalty increases so the affected seat can
+	// see an immediate "-N แต้ม (ทิ้งเต็ม/ดัมมี่)" badge instead of waiting
+	// for round-end scoring to surface it.
+	penaltyDeltas := make([]int, len(afterDumps))
+	for i := range afterDumps {
+		if i < len(beforeDumps) {
+			penaltyDeltas[i] = afterDumps[i] - beforeDumps[i]
+		} else {
+			penaltyDeltas[i] = afterDumps[i]
+		}
+	}
+	seatGuests := make([]string, len(r.seats))
+	for i, s := range r.seats {
+		seatGuests[i] = s.GuestID
+	}
 	over := r.state.RoundOver
 	phaseAfter := r.state.Phase
 	r.mu.Unlock()
 
+	if deltaPts > 0 {
+		r.sendTo(guestID, "action_points", map[string]any{
+			"points": deltaPts,
+			"action": typ,
+		})
+	}
+	for seat, delta := range penaltyDeltas {
+		if delta <= 0 || seat >= len(seatGuests) {
+			continue
+		}
+		// Reason: ทิ้งดัมมี่ if the penalty hit a seat *other* than the
+		// actor (their card was picked up); ทิ้งเต็ม if the actor took
+		// the hit themselves.
+		reason := "dummy"
+		if seat == idx {
+			reason = "full"
+		}
+		r.sendTo(seatGuests[seat], "penalty_points", map[string]any{
+			"points": delta,
+			"reason": reason,
+		})
+	}
 	r.snapshot(ctx)
 	r.broadcastState()
 	if over {
@@ -774,12 +818,40 @@ func (r *Room) sendTo(guestID, typ string, data any) {
 	}
 }
 
+// snapshotDumpPenalties copies the per-seat penalty totals so the action
+// handler can diff them after applying a move.
+func snapshotDumpPenalties(gs *game.GameState) []int {
+	if gs == nil {
+		return nil
+	}
+	out := make([]int, len(gs.DumpPenalties))
+	copy(out, gs.DumpPenalties)
+	return out
+}
+
+// sumOwnedMeldPoints totals the meld value of every meld owned by player p.
+// We diff this before/after each action to surface the delta as a one-shot
+// "action_points" message — that's the "เก็บไพ่ ได้แต้ม" notification the UI
+// renders as a transient "+N แต้ม" badge.
+func sumOwnedMeldPoints(gs *game.GameState, p int) int {
+	if gs == nil {
+		return 0
+	}
+	total := 0
+	for _, m := range gs.Melds {
+		if m.Owner == p {
+			total += game.MeldPoints(m, gs.RuleSet)
+		}
+	}
+	return total
+}
+
 func allowedActions(p game.Phase) []string {
 	switch p {
 	case game.PhaseDraw:
 		return []string{"draw_deck", "draw_discard"}
 	case game.PhaseMeld:
-		return []string{"meld", "layoff", "knock", "discard"}
+		return []string{"meld", "layoff", "knock", "auto_knock", "discard"}
 	default:
 		return nil
 	}
@@ -836,6 +908,8 @@ func decodeAction(typ string, data json.RawMessage) (game.Action, error) {
 		_ = json.Unmarshal(data, &d)
 		c, err := game.ParseCard(d.Card)
 		return game.Action{Type: game.ActKnock, Card: c, Dark: d.Dark}, err
+	case "auto_knock":
+		return game.Action{Type: game.ActAutoKnock}, nil
 	case "discard":
 		var d struct {
 			Card string `json:"card"`

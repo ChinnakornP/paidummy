@@ -57,6 +57,17 @@ type GameState struct {
 	KnockSuit   bool   // knock formed an all-one-suit board for the knocker
 	RuleSet     RuleSet
 	NextMeldSeq int // monotonic counter backing meld ids
+
+	// DiscardedBy is parallel to DiscardPile: DiscardedBy[i] is the seat
+	// that placed DiscardPile[i] into the pile. Used to attribute
+	// ทิ้งดัมมี่ penalties when an opponent later picks the card up into
+	// a meld via draw_discard.
+	DiscardedBy []int
+	// DumpPenalties accumulates -DumpPenalty point hits per seat for
+	// ทิ้งเต็ม (discarding a card that could have been laid off onto a
+	// table meld) and ทิ้งดัมมี่ (the discarded card later gets picked up
+	// and melded). Settled in ScoreRound.
+	DumpPenalties []int
 }
 
 // activePlayer returns a pointer to the player whose turn it is.

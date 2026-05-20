@@ -8,7 +8,8 @@ const (
 	ActDrawDiscard                   // เก็บ: take top of discard pile
 	ActMeld                          // เกิด: lay a new set/run from hand
 	ActLayOff                        // ฝาก: extend an existing table meld
-	ActKnock                         // น็อค: go out
+	ActKnock                         // น็อค: go out (player names the knock card)
+	ActAutoKnock                     // น็อคอัตโนมัติ: server solves melds/layoffs/knock
 	ActDiscard                       // ทิ้ง: end turn by discarding one card
 )
 

@@ -1,38 +1,112 @@
-# ---- Go server ----
+# =====================================================================
+# Go server  (./server)
+# =====================================================================
 server/server
 server/*.test
-server/.env
-*.out
-coverage.txt
+server/*.out
+server/coverage.txt
+server/coverage.html
+server/tmp/                # air / live-reload working dir
+server/dist/
+server/bin/
 
-# ---- Flutter / Dart client ----
+# Local secrets / config
+server/.env
+server/.env.*
+!server/.env.example
+
+# Go build & test caches that occasionally leak into the tree
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+
+# =====================================================================
+# Flutter / Dart client  (./paidummy)
+# =====================================================================
 paidummy/.dart_tool/
+paidummy/.packages
+paidummy/.pub-cache/
+paidummy/.pub/
 paidummy/build/
 paidummy/.flutter-plugins
 paidummy/.flutter-plugins-dependencies
+paidummy/.fvm/                       # FVM-managed SDK pin
+
+# iOS / macOS Xcode scaffolds
 paidummy/ios/Pods/
 paidummy/ios/.symlinks/
+paidummy/ios/Flutter/Flutter.framework
+paidummy/ios/Flutter/Flutter.podspec
+paidummy/ios/Flutter/Generated.xcconfig
+paidummy/ios/Flutter/flutter_export_environment.sh
 paidummy/ios/Runner.xcworkspace/xcuserdata/
+paidummy/ios/Runner.xcodeproj/xcuserdata/
+paidummy/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
 paidummy/macos/Pods/
+paidummy/macos/Flutter/ephemeral/
+paidummy/macos/Flutter/Flutter-Debug.xcconfig
+paidummy/macos/Flutter/Flutter-Release.xcconfig
+paidummy/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Android Gradle scaffolds
 paidummy/android/.gradle/
 paidummy/android/local.properties
 paidummy/android/app/debug/
 paidummy/android/app/profile/
 paidummy/android/app/release/
 paidummy/android/captures/
+paidummy/android/key.properties
+paidummy/android/**/GeneratedPluginRegistrant.java
 
-# ---- IDE / OS ----
+# Desktop targets (ephemeral / generated)
+paidummy/linux/flutter/ephemeral/
+paidummy/windows/flutter/ephemeral/
+
+# Flutter golden test diff outputs
+paidummy/**/failures/
+
+# =====================================================================
+# IDE / editor
+# =====================================================================
 .idea/
 **/.idea/
 *.iml
 .vscode/
+*.swp
+*.swo
+*~
+.history/
+
+# =====================================================================
+# OS
+# =====================================================================
 .DS_Store
 Thumbs.db
+ehthumbs.db
+desktop.ini
 
-# ---- Env / secrets ----
+# =====================================================================
+# Env / secrets
+# =====================================================================
 .env
+.env.*
+!.env.example
 *.env.local
+*.pem
+*.key
+secrets/
 
-# ---- Logs / ad-hoc ----
+# =====================================================================
+# Logs / ad-hoc / scratch
+# =====================================================================
 *.log
+*.bak
+*.tmp
 /tmp/*
+scratch/
+.cache/
+node_modules/

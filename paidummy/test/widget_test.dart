@@ -13,8 +13,10 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: PaiDummyApp()));
     await tester.pump();
 
-    expect(find.text('Pai Dummy'), findsOneWidget);
-    expect(find.text('Play as guest'), findsOneWidget);
+    // Home screen renders the gold-wordmark logo + Thai CTA on the redesigned
+    // entry card. Asserting on both keeps the smoke check meaningful.
+    expect(find.text('ไพ่ดัมมี่'), findsOneWidget);
+    expect(find.text('เข้าสู่เกม'), findsOneWidget);
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 }

@@ -40,6 +40,10 @@ type stateView struct {
 	DrawCount   int            `json:"draw_count"`
 	HeadCard    string         `json:"head_card"`
 	MatchScores map[string]int `json:"match_scores"`
+	// CanAutoKnock is true iff it's the viewer's turn, the meld phase is
+	// active, and the solver can find a full going-out partition of their
+	// current hand. The client uses this to light up the "นอค" button.
+	CanAutoKnock bool `json:"can_auto_knock"`
 }
 
 func cardStrings(cs []game.Card) []string {
@@ -106,6 +110,9 @@ func (r *Room) viewFor(viewer int) stateView {
 		v.Melds = append(v.Melds, meldView{
 			ID: m.ID, Kind: m.Kind.String(), Cards: cardStrings(m.Cards), Owner: m.Owner,
 		})
+	}
+	if viewer == gs.Turn && gs.Phase == game.PhaseMeld {
+		v.CanAutoKnock = game.CanAutoKnock(gs, viewer)
 	}
 	return v
 }

@@ -9,6 +9,7 @@ type ScoreBreakdown struct {
 	KnockBonus     int    `json:"knock_bonus"`
 	KnockCardBonus int    `json:"knock_card_bonus"`
 	HandPenalty    int    `json:"hand_penalty"` // <= 0
+	DumpPenalty    int    `json:"dump_penalty"` // <= 0 — ทิ้งเต็ม + ทิ้งดัมมี่
 	Total          int    `json:"total"`
 }
 
@@ -22,6 +23,10 @@ func meldPoints(m Meld, rs RuleSet) int {
 	}
 	return sum
 }
+
+// MeldPoints is the public alias of meldPoints for callers outside this
+// package (e.g. the room layer surfacing per-action point gains to the UI).
+func MeldPoints(m Meld, rs RuleSet) int { return meldPoints(m, rs) }
 
 // ScoreRound computes every player's score for a finished round. Index of the
 // returned slice aligns with gs.Players. It is pure and reads only gs.RuleSet.
@@ -62,9 +67,16 @@ func ScoreRound(gs *GameState) []ScoreBreakdown {
 		out[i].HandPenalty = -pen
 	}
 
+	for i := range gs.Players {
+		if i < len(gs.DumpPenalties) {
+			out[i].DumpPenalty = -gs.DumpPenalties[i]
+		}
+	}
+
 	for i := range out {
 		out[i].Total = out[i].MeldPoints + out[i].HeadBonus +
-			out[i].KnockBonus + out[i].KnockCardBonus + out[i].HandPenalty
+			out[i].KnockBonus + out[i].KnockCardBonus +
+			out[i].HandPenalty + out[i].DumpPenalty
 	}
 	return out
 }

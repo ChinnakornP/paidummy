@@ -70,10 +70,14 @@ final currentRoomProvider = StateProvider<String?>((ref) => null);
 /// in which case the "ลง" button creates a new meld from selected hand cards.
 final selectedMeldProvider = StateProvider<String?>((ref) => null);
 
-/// Currently tapped discard-pile card (for "เก็บ"). Null = default to the
-/// top of the pile when the player presses เก็บ. When set to a non-top card,
-/// the server will pull every newer card above it into the player's hand.
-final selectedDiscardCardProvider = StateProvider<String?>((ref) => null);
+/// Discard-pile cards the player has tapped to include in a pickup ("เก็บ").
+/// The deepest (oldest, smallest index) selected card becomes the target —
+/// the pile is truncated there. Any other selected pile cards are passed to
+/// the engine as part of the meld; unselected pile cards above the target
+/// fall into the player's hand as extras.
+final selectedDiscardCardsProvider = StateProvider<Set<String>>(
+  (ref) => const {},
+);
 
 class GameController extends StateNotifier<GameView> {
   GameController(this._ws) : super(const GameView()) {
@@ -110,6 +114,20 @@ class GameController extends StateNotifier<GameView> {
       case 'error':
         state = state.copyWith(lastError: data['message'] as String?);
         break;
+      case 'action_points':
+        // One-shot "+N แต้ม" badge for the actor; UI listens, shows, clears.
+        state = state.copyWith(
+          lastActionPoints: (data['points'] as num?)?.toInt(),
+        );
+        break;
+      case 'penalty_points':
+        state = state.copyWith(
+          lastPenalty: PenaltyToast(
+            points: (data['points'] as num?)?.toInt() ?? 0,
+            reason: data['reason'] as String? ?? '',
+          ),
+        );
+        break;
       case 'socket_closed':
       case 'socket_error':
         state = state.copyWith(connected: false);
@@ -134,6 +152,10 @@ class GameController extends StateNotifier<GameView> {
       });
   void knock(String card, {bool dark = false}) =>
       _ws.send('knock', {'card': card, 'dark': dark});
+
+  /// Auto-knock — server's solver lays down every necessary meld/layoff and
+  /// finalises the knock atomically. Enabled by `view.canAutoKnock`.
+  void autoKnock() => _ws.send('auto_knock', const {});
   void discard(String card) => _ws.send('discard', {'card': card});
   void meldSelected() {
     if (state.selected.isEmpty) return;
@@ -164,6 +186,9 @@ class GameController extends StateNotifier<GameView> {
   void clearSelection() => state = state.copyWith(selected: const {});
 
   void clearError() => state = state.copyWith(clearError: true);
+  void clearActionPoints() =>
+      state = state.copyWith(clearActionPoints: true);
+  void clearPenalty() => state = state.copyWith(clearPenalty: true);
 }
 
 /// Local display order for the player's own hand. The server's `your_hand`

@@ -72,6 +72,35 @@ class GuestStats {
   );
 }
 
+/// Server-side daily login bonus state. `claimable` flips to false once
+/// the player claims, and back to true the next Asia/Bangkok calendar day.
+class DailyBonus {
+  const DailyBonus({
+    required this.claimable,
+    required this.streak,
+    required this.nextReward,
+    this.lastClaimAt,
+    this.nextClaimAt,
+  });
+  final bool claimable;
+  final int streak;
+  final int nextReward;
+  final DateTime? lastClaimAt;
+  final DateTime? nextClaimAt;
+
+  factory DailyBonus.fromJson(Map<String, dynamic> j) => DailyBonus(
+    claimable: j['claimable'] as bool? ?? false,
+    streak: (j['streak'] as num?)?.toInt() ?? 0,
+    nextReward: (j['next_reward'] as num?)?.toInt() ?? 0,
+    lastClaimAt: j['last_claim_at'] is String
+        ? DateTime.tryParse(j['last_claim_at'] as String)
+        : null,
+    nextClaimAt: j['next_claim_at'] is String
+        ? DateTime.tryParse(j['next_claim_at'] as String)
+        : null,
+  );
+}
+
 class CoinHistoryRow {
   const CoinHistoryRow({
     required this.matchId,

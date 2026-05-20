@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -462,6 +463,8 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 		r.handleReady(ctx, guestID)
 	case "leave":
 		r.Detach(guestID)
+	case "chat":
+		r.handleChat(guestID, data)
 	case "draw_deck", "draw_discard", "meld", "layoff", "knock", "auto_knock", "discard":
 		r.handleGameAction(ctx, guestID, typ, data)
 	default:
@@ -469,8 +472,58 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 	}
 }
 
+// chatMaxLen caps the length of a single chat message server-side. Drops
+// the tail rather than rejecting the message so the user isn't punished
+// for a long paste.
+const chatMaxLen = 200
+
+// handleChat broadcasts a chat line from the sender to every attached
+// player. Ephemeral — no Postgres persistence. Empty/whitespace-only
+// messages are silently dropped.
+func (r *Room) handleChat(guestID string, data json.RawMessage) {
+	var payload struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return
+	}
+	text := strings.TrimSpace(payload.Text)
+	if text == "" {
+		return
+	}
+	if len(text) > chatMaxLen {
+		text = text[:chatMaxLen]
+	}
+	r.mu.Lock()
+	seat := r.seatIndex(guestID)
+	if seat < 0 {
+		r.mu.Unlock()
+		return
+	}
+	name := r.seats[seat].Name
+	r.mu.Unlock()
+	r.broadcast("chat", map[string]any{
+		"seat": seat,
+		"name": name,
+		"text": text,
+		"ts":   time.Now().UnixMilli(),
+	})
+}
+
 func (r *Room) handleReady(ctx context.Context, guestID string) {
 	r.mu.Lock()
+	// Rematch path — if the prior match has been settled, the first ready
+	// after match_result is treated as a fresh-match request: cumulative
+	// scores reset, roundNo zeroes so startRound mints a new matchID, and
+	// the finished flag clears so the auto-start countdown re-arms.
+	if r.finished {
+		r.scores = map[string]int{}
+		r.finished = false
+		r.roundNo = 0
+		for _, s := range r.seats {
+			s.Ready = false
+		}
+	}
 	if i := r.seatIndex(guestID); i != -1 {
 		r.seats[i].Ready = true
 	}

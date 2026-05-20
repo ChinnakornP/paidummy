@@ -37,6 +37,29 @@ class PenaltyToast {
   final String reason;
 }
 
+/// One chat line as received over the WS `chat` envelope. `seat == -1`
+/// means a system message (unused today; reserved for future "X joined"
+/// notices).
+class ChatMessage {
+  const ChatMessage({
+    required this.seat,
+    required this.name,
+    required this.text,
+    required this.timestampMs,
+  });
+  final int seat;
+  final String name;
+  final String text;
+  final int timestampMs;
+
+  factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
+    seat: (j['seat'] as num?)?.toInt() ?? -1,
+    name: j['name'] as String? ?? '',
+    text: j['text'] as String? ?? '',
+    timestampMs: (j['ts'] as num?)?.toInt() ?? 0,
+  );
+}
+
 class MeldView {
   const MeldView({
     required this.id,
@@ -85,6 +108,8 @@ class GameView {
     this.roundResult,
     this.matchResult,
     this.selected = const {},
+    this.chatMessages = const [],
+    this.chatUnread = 0,
   });
 
   final bool connected;
@@ -123,6 +148,12 @@ class GameView {
   /// Cards the local player has tapped to stage a meld/discard.
   final Set<String> selected;
 
+  /// In-room chat backlog (oldest→newest), capped client-side to 50.
+  final List<ChatMessage> chatMessages;
+  /// Number of chat messages received since the user last opened the chat
+  /// sheet. Drives the red dot on the chat button.
+  final int chatUnread;
+
   bool get isMyTurn => turn >= 0 && turn == yourSeat;
 
   GameView copyWith({
@@ -152,7 +183,10 @@ class GameView {
     bool clearPenalty = false,
     Map<String, dynamic>? roundResult,
     Map<String, dynamic>? matchResult,
+    bool clearResults = false,
     Set<String>? selected,
+    List<ChatMessage>? chatMessages,
+    int? chatUnread,
   }) {
     return GameView(
       connected: connected ?? this.connected,
@@ -180,9 +214,11 @@ class GameView {
       lastPenalty: clearPenalty
           ? null
           : (lastPenalty ?? this.lastPenalty),
-      roundResult: roundResult ?? this.roundResult,
-      matchResult: matchResult ?? this.matchResult,
+      roundResult: clearResults ? null : (roundResult ?? this.roundResult),
+      matchResult: clearResults ? null : (matchResult ?? this.matchResult),
       selected: selected ?? this.selected,
+      chatMessages: chatMessages ?? this.chatMessages,
+      chatUnread: chatUnread ?? this.chatUnread,
     );
   }
 

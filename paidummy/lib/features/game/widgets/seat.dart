@@ -52,14 +52,16 @@ class Seat extends StatelessWidget {
     required this.player,
     required this.active,
     required this.palette,
+    this.onTap,
   });
   final PlayerPublic player;
   final bool active;
   final SeatPalette palette;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final card = SizedBox(
       width: 110,
       child: Stack(
         clipBehavior: Clip.none,
@@ -200,6 +202,18 @@ class Seat extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+    if (onTap == null) return card;
+    // Wrap in a tap target so any seat opens the profile dialog. Material
+    // ripple is bound by the seat-card's rounded shape.
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: card,
       ),
     );
   }

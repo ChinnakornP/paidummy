@@ -44,3 +44,12 @@ final coinHistoryProvider = FutureProvider.autoDispose<List<CoinHistoryRow>>((
   if (g == null) return const [];
   return ref.read(apiClientProvider).coinHistory(g.token);
 });
+
+/// Daily-login bonus state — `null` until a guest is signed in. The lobby
+/// chip reads this to decide whether to show the gift CTA or the
+/// "claimed — back tomorrow" pill.
+final dailyBonusProvider = FutureProvider.autoDispose<DailyBonus?>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return null;
+  return ref.read(apiClientProvider).dailyStatus(g.token);
+});

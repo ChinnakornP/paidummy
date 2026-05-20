@@ -1,6 +1,7 @@
 package room
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/andaseacode/paidummy-server/internal/db"
@@ -313,6 +314,51 @@ func (a *RESTAdapter) AddBot(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"added": added})
+}
+
+// DailyStatusHandler GET /api/v1/me/daily — returns whether the guest can
+// claim today's bonus + the streak/reward they would earn.
+func DailyStatusHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		st, err := database.DailyStatus(c.Request.Context(), g.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "daily status failed"})
+			return
+		}
+		c.JSON(http.StatusOK, st)
+	}
+}
+
+// DailyClaimHandler POST /api/v1/me/daily/claim — credits the daily bonus
+// atomically (no body). Returns the new streak, coins added, and balance.
+// 409 if the guest has already claimed within the current Asia/Bangkok day.
+func DailyClaimHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		streak, added, bal, err := database.ClaimDaily(c.Request.Context(), g.ID)
+		if err != nil {
+			if errors.Is(err, db.ErrDailyAlreadyClaimed) {
+				c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "claim failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"streak":      streak,
+			"coins_added": added,
+			"new_balance": bal,
+		})
+	}
 }
 
 // HistoryHandler GET /api/v1/matches/history

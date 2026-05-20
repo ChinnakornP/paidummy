@@ -39,6 +39,9 @@ type Server struct {
 
 	MyHistory   gin.HandlerFunc // GET /api/v1/me/history — coin timeline
 	RoomHistory gin.HandlerFunc // GET /api/v1/rooms/:id/history — table log
+
+	DailyStatus gin.HandlerFunc // GET  /api/v1/me/daily        — claim eligibility
+	DailyClaim  gin.HandlerFunc // POST /api/v1/me/daily/claim — credit bonus
 }
 
 const ctxGuestKey = "guest"
@@ -83,6 +86,12 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.RoomHistory != nil {
 			auth.GET("/rooms/:id/history", s.RoomHistory)
+		}
+		if s.DailyStatus != nil {
+			auth.GET("/me/daily", s.DailyStatus)
+		}
+		if s.DailyClaim != nil {
+			auth.POST("/me/daily/claim", s.DailyClaim)
 		}
 	}
 

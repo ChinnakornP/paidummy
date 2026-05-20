@@ -5,6 +5,8 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 **M** ≈ 3–5 days · **L** ≈ 1–2 weeks.
 
 > Updated: 2026-05-20
+>
+> ✅ = shipped in the current branch (see commit log).
 
 ---
 
@@ -27,17 +29,17 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
-| 1.1 | In-room text chat + emoji react | Decorative chat button already in `_ChatButton`; server routes per-room broadcasts — needs only a `"chat"` WS message + a panel. | S |
+| ✅ 1.1 | In-room text chat + emoji react | Decorative chat button already in `_ChatButton`; server routes per-room broadcasts — needs only a `"chat"` WS message + a panel. | S |
 | 1.2 | Friend list + private invite | Quickplay finds strangers; friends finish more rounds together. New `friends` / `invites` DB tables + REST + lobby sheet. | M |
 | 1.3 | Private / password rooms | Hosting a session for a specific group. Add `password` to room create; gate Join. | S |
 | 1.4 | Spectator mode | View-only seat. Reuse `room_state` but with `your_hand: []`; gate action handlers. | M |
-| 1.5 | Player profile screen | Tap any seat → stats, history, rank. Pure read-side; reuses `MeHandler` + `MatchHistory`. | S |
+| ✅ 1.5 | Player profile screen | Tap any seat → stats, history, rank. Pure read-side; reuses `MeHandler` + `MatchHistory`. | S |
 
 ## 2. Game flow polish
 
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
-| 2.1 | Rematch button after match end | Currently match ends → back to lobby. Keep players seated with a `rematch` WS message. | S |
+| ✅ 2.1 | Rematch button after match end | Currently match ends → back to lobby. Keep players seated with a `rematch` WS message. | S |
 | 2.2 | Room settings (target score / turn timer / dark-knock toggle) | Currently fixed in `DefaultRuleSet`. Surface a few knobs on room create. | S |
 | 2.3 | Interactive tutorial / onboarding | First-time guest goes through a guided 3-turn demo against a bot. | M |
 | 2.4 | Practice mode vs bots (no stake) | Solo training; reuses bot infra, just a room kind that doesn't settle coins. | S |
@@ -59,7 +61,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | --- | --- | --- | --- |
 | 4.1 | Sound effects + ambient music | Card flip, deal, ทิ้ง, น็อค, win/lose stings. Asset pack + a Riverpod sound service. Single biggest "this feels like a game" upgrade. | S |
 | 4.2 | Card animations (deal, draw, discard, meld lay-down) | Flame already drives the table; animate cards between zones with `Tween`s. | M |
-| 4.3 | Haptics on action | `HapticFeedback.lightImpact()` on draw/meld/discard. Trivial. | XS |
+| ✅ 4.3 | Haptics on action | `HapticFeedback.lightImpact()` on draw/meld/discard. Trivial. | XS |
 | 4.4 | Card / table themes | Cosmetic-shop unlocks. Server stores `selected_skin` per guest; client renders accordingly. | M |
 | 4.5 | Avatar picker (preset images) | 12 preset avatars makes the lobby read social. Today it's just a first-letter circle. | S |
 
@@ -67,7 +69,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
-| 5.1 | Daily login bonus + streak | Free coin every 24 h, scaling on consecutive days. `last_claim_at` column + one endpoint. | XS |
+| ✅ 5.1 | Daily login bonus + streak | Free coin every 24 h, scaling on consecutive days. `last_claim_at` column + one endpoint. | XS |
 | 5.2 | Daily missions ("เล่น 3 ตา", "น็อคซ้ำสี") | Drives session length. Server-side mission set + progress writes on each match. | M |
 | 5.3 | Leaderboards (daily / weekly / all-time) | Read-only ranking by coins won / matches won. SQL view + a lobby sheet. | S |
 | 5.4 | Tournaments / scheduled events | One-shot rooms with prize pool ("ห้อง VIP ทุกวันศุกร์ 20:00"). | L |

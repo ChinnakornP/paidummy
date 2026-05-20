@@ -6,7 +6,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/index.dart';
 import '../../shop/shop_sheet.dart';
+import 'chat_sheet.dart';
 
 /// Gold circular shop button with the +120% red badge. Tapping opens the
 /// coin shop sheet.
@@ -106,35 +108,75 @@ class SideTab extends StatelessWidget {
   }
 }
 
-/// Light circular chat button (decorative).
-class ChatButton extends StatelessWidget {
+/// Round chat button with a red unread dot. Opens the chat sheet, which is
+/// wired to the WS `chat` envelope.
+class ChatButton extends ConsumerWidget {
   const ChatButton({super.key});
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFE8EEF2), Color(0xFFC5CDD2)],
-        ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.4),
-          width: 2,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 10,
-            offset: Offset(0, 4),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(
+      gameControllerProvider.select((v) => v.chatUnread),
+    );
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          GestureDetector(
+            onTap: () => showChatSheet(context, ref),
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFE8EEF2), Color(0xFFC5CDD2)],
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  width: 2,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Text('💬', style: TextStyle(fontSize: 26)),
+            ),
           ),
+          if (unread > 0)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD63333),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                alignment: Alignment.center,
+                child: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
-      alignment: Alignment.center,
-      child: const Text('💬', style: TextStyle(fontSize: 26)),
     );
   }
 }

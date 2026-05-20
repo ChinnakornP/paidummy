@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../core/models/index.dart';
+import 'daily_bonus_button.dart';
 import 'wallet_pill.dart';
 
 class LobbyTopBar extends StatelessWidget {
@@ -89,6 +90,7 @@ class LobbyTopBar extends StatelessWidget {
             onRefresh: onWalletTap,
           ),
           const SizedBox(width: 2),
+          const DailyBonusButton(),
           LobbyIconButton(
             emoji: '📜',
             tooltip: 'ประวัติ',

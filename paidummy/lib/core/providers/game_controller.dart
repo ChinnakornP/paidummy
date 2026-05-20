@@ -70,6 +70,18 @@ class GameController extends StateNotifier<GameView> {
           ),
         );
         break;
+      case 'chat':
+        // Append to the bounded backlog (oldest evicted at 50) and bump
+        // the unread counter; the UI clears it via clearChatUnread() when
+        // the user opens the chat sheet.
+        final msg = ChatMessage.fromJson(data);
+        final next = [...state.chatMessages, msg];
+        if (next.length > 50) next.removeRange(0, next.length - 50);
+        state = state.copyWith(
+          chatMessages: next,
+          chatUnread: state.chatUnread + 1,
+        );
+        break;
       case 'socket_closed':
       case 'socket_error':
         state = state.copyWith(connected: false);
@@ -127,6 +139,20 @@ class GameController extends StateNotifier<GameView> {
     clearSelection();
   }
 
+  /// Sends a chat line to all seated players. Empty lines are dropped
+   /// server-side; the client just trims here for snappier feedback.
+  void sendChat(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    _ws.send('chat', {'text': trimmed});
+  }
+
+  /// Resets the unread chat badge. Call when the chat sheet opens.
+  void clearChatUnread() {
+    if (state.chatUnread == 0) return;
+    state = state.copyWith(chatUnread: 0);
+  }
+
   void leave() => _ws.send('leave');
 
   void toggleSelect(String card) {
@@ -141,6 +167,10 @@ class GameController extends StateNotifier<GameView> {
   void clearActionPoints() =>
       state = state.copyWith(clearActionPoints: true);
   void clearPenalty() => state = state.copyWith(clearPenalty: true);
+  /// Clears the cached round/match-result envelopes so the result dialog
+  /// will re-open the next time the server emits a fresh round_result /
+  /// match_result. Called by the "อีกตา" rematch button.
+  void clearResults() => state = state.copyWith(clearResults: true);
 }
 
 /// Local display order for the player's own hand. The server's `your_hand`

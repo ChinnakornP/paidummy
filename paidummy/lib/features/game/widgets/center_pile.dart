@@ -4,6 +4,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/index.dart';
@@ -50,6 +51,7 @@ class CenterPile extends ConsumerWidget {
               selected: selected,
               target: target,
               onTap: (card) {
+                HapticFeedback.selectionClick();
                 final cur = ref.read(selectedDiscardCardsProvider);
                 final next = Set<String>.from(cur);
                 if (!next.add(card)) next.remove(card);

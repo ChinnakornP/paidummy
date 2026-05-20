@@ -116,6 +116,20 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 onPressed: () => Navigator.pop(c),
                 child: const Text('ตกลง'),
               ),
+              // Rematch CTA — only meaningful when the match (not a single
+              // round) just ended. Clears the cached result envelopes and
+              // re-sends `ready`, which the server treats as a fresh-match
+              // request when the room is in the finished state.
+              if (isMatch)
+                FilledButton.icon(
+                  onPressed: () {
+                    ctrl.clearResults();
+                    ctrl.ready();
+                    Navigator.pop(c);
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('อีกตา'),
+                ),
             ],
           ),
         );
@@ -217,6 +231,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   player: opponents[i],
                   active: view.turn == opponents[i].seat,
                   palette: kSeatPalettes[i % kSeatPalettes.length],
+                  onTap: () => showProfileDialog(
+                    context,
+                    player: opponents[i],
+                    isSelf: false,
+                  ),
                 ),
               ),
 
@@ -258,6 +277,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   player: selfPlayer,
                   active: view.isMyTurn,
                   palette: kSelfSeatPalette,
+                  onTap: () => showProfileDialog(
+                    context,
+                    player: selfPlayer!,
+                    isSelf: true,
+                  ),
                 ),
               ),
 

@@ -55,6 +55,8 @@ func main() {
 		Purchase:    room.PurchaseHandler(database),
 		MyHistory:   room.CoinHistoryHandler(database),
 		RoomHistory: room.RoomHistoryHandler(database),
+		DailyStatus: room.DailyStatusHandler(database),
+		DailyClaim:  room.DailyClaimHandler(database),
 	}
 
 	httpServer := &http.Server{

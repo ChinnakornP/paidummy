@@ -3,6 +3,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/index.dart';
@@ -10,6 +11,13 @@ import '../../../core/providers/index.dart';
 import 'game_buttons.dart';
 import 'hand_fan.dart';
 import 'timers.dart';
+
+// Haptic helpers — light tick on tap/draw/discard, medium thump on knock.
+// Keep all platform-channel calls in this file so the controller stays
+// service-free / testable.
+void _tapHaptic() => HapticFeedback.selectionClick();
+void _actionHaptic() => HapticFeedback.lightImpact();
+void _knockHaptic() => HapticFeedback.mediumImpact();
 
 class HandAndControls extends ConsumerWidget {
   const HandAndControls({super.key, required this.view, required this.ctrl});
@@ -30,7 +38,10 @@ class HandAndControls extends ConsumerWidget {
           icon: Icons.check_circle_outline,
           label: 'พร้อม',
           colors: const [Color(0xFF6DC94A), Color(0xFF3E8A25)],
-          onTap: ctrl.ready,
+          onTap: () {
+            _tapHaptic();
+            ctrl.ready();
+          },
           highlight: true,
         ),
       ];
@@ -68,7 +79,10 @@ class HandAndControls extends ConsumerWidget {
           icon: Icons.style,
           label: 'จั่วไพ่',
           colors: const [Color(0xFFF49A3A), Color(0xFFC66A18)],
-          onTap: ctrl.drawDeck,
+          onTap: () {
+            _actionHaptic();
+            ctrl.drawDeck();
+          },
           highlight: !canDummyLayoff,
         ),
         GameButton(
@@ -80,6 +94,7 @@ class HandAndControls extends ConsumerWidget {
           colors: const [Color(0xFF9A9A9A), Color(0xFF6A6A6A)],
           onTap: canPickup
               ? () {
+                  _actionHaptic();
                   ctrl.drawDiscard(supportingCards, targetCard: target);
                   ref.read(selectedDiscardCardsProvider.notifier).state =
                       const {};
@@ -96,6 +111,7 @@ class HandAndControls extends ConsumerWidget {
           colors: const [Color(0xFF6DC94A), Color(0xFF3E8A25)],
           onTap: canDummyLayoff
               ? () {
+                  _actionHaptic();
                   ctrl.drawDiscard(
                     const [],
                     targetCard: target,
@@ -131,6 +147,7 @@ class HandAndControls extends ConsumerWidget {
         colors: const [Color(0xFF6DC94A), Color(0xFF3E8A25)],
         onTap: (canNewMeld || canLayoff)
             ? () {
+                _actionHaptic();
                 if (selectedMeld != null) {
                   ctrl.layoffSelected(selectedMeld);
                 } else {
@@ -145,7 +162,12 @@ class HandAndControls extends ConsumerWidget {
         icon: Icons.delete_outline,
         label: 'ทิ้ง',
         colors: const [Color(0xFFF49A3A), Color(0xFFC66A18)],
-        onTap: canDiscard ? ctrl.discardSelectedFirst : null,
+        onTap: canDiscard
+            ? () {
+                _actionHaptic();
+                ctrl.discardSelectedFirst();
+              }
+            : null,
         highlight: canDiscard && !canKnock,
       ),
       GameButton(
@@ -154,6 +176,7 @@ class HandAndControls extends ConsumerWidget {
         colors: const [Color(0xFFE060A8), Color(0xFFA42B72)],
         onTap: canKnock
             ? () {
+                _knockHaptic();
                 // Prefer auto-knock when the server says a plan exists; only
                 // fall through to manual knock if the player has narrowed the
                 // hand to 1 card themselves.
@@ -195,7 +218,10 @@ class HandAndControls extends ConsumerWidget {
         HandFan(
           hand: hand,
           selected: view.selected,
-          onToggle: ctrl.toggleSelect,
+          onToggle: (c) {
+            _tapHaptic();
+            ctrl.toggleSelect(c);
+          },
           onMove: ref.read(handOrderProvider.notifier).move,
         ),
       ],

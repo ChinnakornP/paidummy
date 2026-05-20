@@ -175,6 +175,36 @@ class ApiClient {
     );
   }
 
+  /// Returns whether the guest can claim today's daily bonus + which streak
+  /// they would land on.
+  Future<DailyBonus> dailyStatus(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/me/daily'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return DailyBonus.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+  }
+
+  /// Credits the daily bonus atomically. Returns the awarded streak, coins
+  /// added, and the new balance.
+  Future<({int streak, int coinsAdded, int newBalance})> claimDaily(
+    String token,
+  ) async {
+    final r = await _c.post(
+      _u('/api/v1/me/daily/claim'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'claim failed');
+    }
+    return (
+      streak: (j['streak'] as num).toInt(),
+      coinsAdded: (j['coins_added'] as num).toInt(),
+      newBalance: (j['new_balance'] as num).toInt(),
+    );
+  }
+
   Future<void> addBots(String token, String roomId, int count) async {
     await _c.post(
       _u('/api/v1/rooms/$roomId/bots'),

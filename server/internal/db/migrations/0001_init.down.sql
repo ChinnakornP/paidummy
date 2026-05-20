@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS round_scores;
+DROP TABLE IF EXISTS rounds;
+DROP TABLE IF EXISTS match_players;
+DROP TABLE IF EXISTS matches;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS guest_users;

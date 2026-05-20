@@ -1,0 +1,38 @@
+# ---- Go server ----
+server/server
+server/*.test
+server/.env
+*.out
+coverage.txt
+
+# ---- Flutter / Dart client ----
+paidummy/.dart_tool/
+paidummy/build/
+paidummy/.flutter-plugins
+paidummy/.flutter-plugins-dependencies
+paidummy/ios/Pods/
+paidummy/ios/.symlinks/
+paidummy/ios/Runner.xcworkspace/xcuserdata/
+paidummy/macos/Pods/
+paidummy/android/.gradle/
+paidummy/android/local.properties
+paidummy/android/app/debug/
+paidummy/android/app/profile/
+paidummy/android/app/release/
+paidummy/android/captures/
+
+# ---- IDE / OS ----
+.idea/
+**/.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---- Env / secrets ----
+.env
+*.env.local
+
+# ---- Logs / ad-hoc ----
+*.log
+/tmp/*

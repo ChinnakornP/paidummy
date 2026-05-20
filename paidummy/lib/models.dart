@@ -105,6 +105,7 @@ class GameView {
     this.yourHand = const [],
     this.melds = const [],
     this.discardTop = '',
+    this.discardPile = const [],
     this.drawCount = 0,
     this.headCard = '',
     this.matchScores = const {},
@@ -127,6 +128,7 @@ class GameView {
   final List<String> yourHand;
   final List<MeldView> melds;
   final String discardTop;
+  final List<String> discardPile; // oldest→newest, lined up on the table
   final int drawCount;
   final String headCard;
   final Map<String, int> matchScores;
@@ -153,6 +155,7 @@ class GameView {
     List<String>? yourHand,
     List<MeldView>? melds,
     String? discardTop,
+    List<String>? discardPile,
     int? drawCount,
     String? headCard,
     Map<String, int>? matchScores,
@@ -176,6 +179,7 @@ class GameView {
       yourHand: yourHand ?? this.yourHand,
       melds: melds ?? this.melds,
       discardTop: discardTop ?? this.discardTop,
+      discardPile: discardPile ?? this.discardPile,
       drawCount: drawCount ?? this.drawCount,
       headCard: headCard ?? this.headCard,
       matchScores: matchScores ?? this.matchScores,
@@ -210,6 +214,9 @@ class GameView {
           .map((e) => MeldView.fromJson(e as Map<String, dynamic>))
           .toList(),
       discardTop: j['discard_top'] as String? ?? '',
+      discardPile: ((j['discard_pile'] as List?) ?? const [])
+          .map((e) => e as String)
+          .toList(),
       drawCount: (j['draw_count'] as num?)?.toInt() ?? 0,
       headCard: j['head_card'] as String? ?? '',
       matchScores: ((j['match_scores'] as Map?) ?? const {}).map(

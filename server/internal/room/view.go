@@ -36,6 +36,7 @@ type stateView struct {
 	Melds       []meldView     `json:"melds"`
 	DiscardTop  string         `json:"discard_top"`
 	DiscardSize int            `json:"discard_size"`
+	DiscardPile []string       `json:"discard_pile"` // full sequence, oldest→newest
 	DrawCount   int            `json:"draw_count"`
 	HeadCard    string         `json:"head_card"`
 	MatchScores map[string]int `json:"match_scores"`
@@ -87,6 +88,7 @@ func (r *Room) viewFor(viewer int) stateView {
 	v.HeadCard = gs.HeadCard.String()
 	v.DrawCount = len(gs.DrawPile)
 	v.DiscardSize = len(gs.DiscardPile)
+	v.DiscardPile = cardStrings(gs.DiscardPile)
 	if n := len(gs.DiscardPile); n > 0 {
 		v.DiscardTop = gs.DiscardPile[n-1].String()
 	}

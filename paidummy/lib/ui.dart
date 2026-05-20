@@ -399,6 +399,23 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 ),
               ),
 
+            // Tappable meld overlay above the felt. Selecting a meld switches
+            // the "ลง" action button into "ฝาก" mode.
+            if (view.melds.isNotEmpty)
+              Align(
+                alignment: const Alignment(0, -0.42),
+                child: _MeldsOverlay(
+                  melds: view.melds,
+                  selectedId: ref.watch(selectedMeldProvider),
+                  onTap: (id) {
+                    final cur = ref.read(selectedMeldProvider);
+                    ref.read(selectedMeldProvider.notifier).state = cur == id
+                        ? null
+                        : id;
+                  },
+                ),
+              ),
+
             // Bottom: fanned hand + action bar.
             Align(
               alignment: Alignment.bottomCenter,
@@ -638,7 +655,12 @@ class _HandAndControls extends ConsumerWidget {
 
   /// Build the contextual action row for the current turn state. Only the
   /// buttons that actually make sense are shown — no ยกเลิก/ตกลง.
-  List<Widget> _actions() {
+  ///
+  /// The "ลง"/"ฝาก" button switches behaviour based on whether the player
+  /// tapped a table meld first (selectedMeldProvider != null):
+  ///   • no meld targeted → "ลง" — create a new meld from ≥3 hand cards.
+  ///   • meld targeted    → "ฝาก" — extend that meld with ≥1 hand card.
+  List<Widget> _actions(WidgetRef ref) {
     if (!view.started) {
       return [
         _GameButton(
@@ -675,18 +697,31 @@ class _HandAndControls extends ConsumerWidget {
         ),
       ];
     }
-    // Meld phase: surface only ลง / ทิ้ง / น็อค, each lit when valid.
+    // Meld phase: surface ลง/ฝาก / ทิ้ง / น็อค, each lit when valid.
+    final selectedMeld = ref.watch(selectedMeldProvider);
     final selN = view.selected.length;
-    final canMeld = selN >= 3;
     final canDiscard = selN == 1;
     final canKnock = selN == 1 && view.yourHand.length == 1;
+    final canNewMeld = selectedMeld == null && selN >= 3;
+    final canLayoff = selectedMeld != null && selN >= 1;
     return [
       _GameButton(
-        icon: Icons.dashboard_customize,
-        label: 'ลง',
+        icon: selectedMeld != null
+            ? Icons.add_to_photos
+            : Icons.dashboard_customize,
+        label: selectedMeld != null ? 'ฝาก' : 'ลง',
         colors: const [Color(0xFF6DC94A), Color(0xFF3E8A25)],
-        onTap: canMeld ? ctrl.meldSelected : null,
-        highlight: canMeld,
+        onTap: (canNewMeld || canLayoff)
+            ? () {
+                if (selectedMeld != null) {
+                  ctrl.layoffSelected(selectedMeld);
+                } else {
+                  ctrl.meldSelected();
+                }
+                ref.read(selectedMeldProvider.notifier).state = null;
+              }
+            : null,
+        highlight: canNewMeld || canLayoff,
       ),
       _GameButton(
         icon: Icons.delete_outline,
@@ -724,7 +759,7 @@ class _HandAndControls extends ConsumerWidget {
               _SortButton(
                 onTap: ref.read(handOrderProvider.notifier).cycleSort,
               ),
-              ..._actions(),
+              ..._actions(ref),
             ],
           ),
         ),
@@ -1419,6 +1454,157 @@ class _TierCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Stack of every table meld, each tappable so the player can target it for
+/// "ฝาก" (layoff). The selected meld glows gold; tapping it again deselects.
+class _MeldsOverlay extends StatelessWidget {
+  const _MeldsOverlay({
+    required this.melds,
+    required this.selectedId,
+    required this.onTap,
+  });
+  final List<MeldView> melds;
+  final String? selectedId;
+  final void Function(String meldId) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 460),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final m in melds)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _MeldRow(
+                meld: m,
+                selected: m.id == selectedId,
+                onTap: () => onTap(m.id),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeldRow extends StatelessWidget {
+  const _MeldRow({
+    required this.meld,
+    required this.selected,
+    required this.onTap,
+  });
+  final MeldView meld;
+  final bool selected;
+  final VoidCallback onTap;
+
+  static const _cardW = 36.0;
+  static const _cardH = 50.0;
+  static const _overlap = 16.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = meld.cards.length;
+    final width = n == 0 ? 0.0 : _cardW + (n - 1) * _overlap;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: selected ? 0.45 : 0.25),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFFFFD24A)
+                  : Colors.white.withValues(alpha: 0.15),
+              width: selected ? 2.5 : 1,
+            ),
+            boxShadow: selected
+                ? const [BoxShadow(color: Color(0x99FFD24A), blurRadius: 14)]
+                : null,
+          ),
+          child: SizedBox(
+            width: width,
+            height: _cardH,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                for (var i = 0; i < meld.cards.length; i++)
+                  Positioned(
+                    left: i * _overlap,
+                    child: _MiniCard(label: meld.cards[i]),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniCard extends StatelessWidget {
+  const _MiniCard({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label.length < 2) return const SizedBox(width: 36, height: 50);
+    final rank = label[0] == 'T' ? '10' : label[0];
+    final suit = label[1];
+    final isRed = suit == 'H' || suit == 'D';
+    final color = isRed ? const Color(0xFFD63333) : const Color(0xFF1A1A1A);
+    final suitGlyph = switch (suit) {
+      'H' => '♥',
+      'D' => '♦',
+      'S' => '♠',
+      _ => '♣',
+    };
+    return Container(
+      width: 36,
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFFCCCCCC)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.all(3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            rank,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Georgia',
+              height: 1,
+            ),
+          ),
+          Text(
+            suitGlyph,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontFamily: 'Georgia',
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -47,6 +47,10 @@ final tiersProvider = FutureProvider.autoDispose<List<int>>((ref) async {
 /// The room the player is currently in (null = in lobby).
 final currentRoomProvider = StateProvider<String?>((ref) => null);
 
+/// Currently selected table meld (for layoff "ฝาก"). Null = no meld targeted,
+/// in which case the "ลง" button creates a new meld from selected hand cards.
+final selectedMeldProvider = StateProvider<String?>((ref) => null);
+
 class GameController extends StateNotifier<GameView> {
   GameController(this._ws) : super(const GameView()) {
     _ws.messages.listen(_onMessage);

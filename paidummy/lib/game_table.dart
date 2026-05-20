@@ -329,29 +329,32 @@ class TableGame extends FlameGame {
     // Decorative dashed refresh circle on the right edge.
     _dashedCircle(canvas, Offset(f.right - 36, cy), 18);
 
-    // Pile on the LEFT of centre, overlapping like the HTML mock.
+    // Left chip: deck-back with remaining draw count, then the face-up head
+    // card immediately next to it.
     final pileY = cy - _cardH / 2;
     var px = f.left + 32;
     _backCard(canvas, Offset(px, pileY), centre: '${view.drawCount}');
     px += _cardW - 28;
     if (view.headCard.isNotEmpty) {
       _faceCard(canvas, Offset(px, pileY), view.headCard);
-      px += _cardW - 28;
-    }
-    if (view.discardTop.isNotEmpty) {
-      _faceCard(canvas, Offset(px, pileY), view.discardTop);
     }
 
-    // Table melds along the upper felt.
-    var my = f.top + 18;
-    for (final m in view.melds) {
-      var mx = f.left + 16;
-      for (final card in m.cards) {
-        _faceCard(canvas, Offset(mx, my), card);
-        mx += _cardW - 22;
+    // Discard pile (ทิ้ง): every discarded card lined up oldest→newest with
+    // adaptive overlap so a long pile still fits the felt.
+    final pile = view.discardPile;
+    if (pile.isNotEmpty) {
+      final discardStart = px + _cardW + 12;
+      final availableW = f.right - discardStart - 14;
+      const naturalStep = 22.0; // matches game_design_v1.html overlap (-28)
+      final step = pile.length > 1
+          ? (availableW - _cardW) / (pile.length - 1)
+          : 0.0;
+      final useStep = (step > 0 && step < naturalStep) ? step : naturalStep;
+      for (var i = 0; i < pile.length; i++) {
+        _faceCard(canvas, Offset(discardStart + i * useStep, pileY), pile[i]);
       }
-      my += _cardH * 0.55;
-      if (my > cy - 80) break;
     }
+    // Note: table melds are rendered as a Flutter overlay (see _MeldsOverlay
+    // in ui.dart) so each meld is tappable for layoff ("ฝาก") UX.
   }
 }

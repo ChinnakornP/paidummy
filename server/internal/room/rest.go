@@ -144,6 +144,48 @@ func TiersHandler() gin.HandlerFunc {
 	}
 }
 
+// PackagesHandler GET /api/v1/shop/packages — the coin-package menu.
+// Server is the source of truth for prices, coin amounts, and ids.
+func PackagesHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"packages": db.CoinPackages})
+	}
+}
+
+// PurchaseHandler POST /api/v1/shop/purchase {"package_id": ...} — mock
+// payment that always succeeds, credits the wallet atomically, returns the
+// new balance and the coins added. Real payment will wrap this with a
+// provider capture step before db.PurchasePackage.
+func PurchaseHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			PackageID string `json:"package_id"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		pkg, ok := db.FindPackage(req.PackageID)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unknown package_id"})
+			return
+		}
+		bal, err := database.PurchasePackage(c.Request.Context(), g.ID, pkg)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "purchase failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":      "mock_success",
+			"package_id":  pkg.ID,
+			"coins_added": pkg.Coins,
+			"new_balance": bal,
+		})
+	}
+}
+
 // MeHandler GET /api/v1/me — refresh the authenticated guest's wallet.
 func MeHandler(database *db.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {

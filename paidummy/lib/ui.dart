@@ -187,6 +187,13 @@ class LobbyScreen extends ConsumerWidget {
                     loading: wallet.isLoading,
                     onRefresh: () => ref.invalidate(walletProvider),
                   ),
+                  const SizedBox(width: 6),
+                  // Open the coin shop sheet.
+                  IconButton(
+                    onPressed: () => _openShop(context, ref),
+                    icon: const Text('🛒', style: TextStyle(fontSize: 22)),
+                    tooltip: 'ร้านค้า',
+                  ),
                   IconButton(
                     onPressed: () =>
                         ref.read(sessionProvider.notifier).signOut(),
@@ -1722,37 +1729,55 @@ class _PillButton extends StatelessWidget {
 
 // ---- Decorative chrome (matches game_design_v1.html, no backend yet) ----
 
-/// Gold circular shop button with the +120% red badge.
-class _ShopButton extends StatelessWidget {
+/// Opens the coin-shop bottom sheet. Public-ish helper so both the lobby
+/// 🛒 icon and the in-game `_ShopButton` can trigger the same flow.
+Future<void> _openShop(BuildContext context, WidgetRef ref) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(0xFF12313B),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => const _ShopSheet(),
+  );
+}
+
+/// Gold circular shop button with the +120% red badge. Tapping opens the
+/// coin shop sheet.
+class _ShopButton extends ConsumerWidget {
   const _ShopButton();
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
       width: 64,
       height: 64,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFE9A3), Color(0xFFC89D3A)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black54,
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
+          GestureDetector(
+            onTap: () => _openShop(context, ref),
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFE9A3), Color(0xFFC89D3A)],
                 ),
-              ],
-            ),
-            child: const Center(
-              child: Text('🛒', style: TextStyle(fontSize: 26)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Text('🛒', style: TextStyle(fontSize: 26)),
+              ),
             ),
           ),
           Positioned(
@@ -1905,6 +1930,256 @@ class _RightChrome extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Modal coin-shop sheet — lists every server-defined package as a tappable
+/// card. Payment is currently mocked server-side (always succeeds); the sheet
+/// invalidates the wallet provider on success so the pill updates instantly.
+class _ShopSheet extends ConsumerStatefulWidget {
+  const _ShopSheet();
+  @override
+  ConsumerState<_ShopSheet> createState() => _ShopSheetState();
+}
+
+class _ShopSheetState extends ConsumerState<_ShopSheet> {
+  String? _busyPackageId;
+
+  Future<void> _buy(CoinPackage pkg) async {
+    final g = ref.read(sessionProvider);
+    if (g == null) return;
+    setState(() => _busyPackageId = pkg.id);
+    try {
+      final r = await ref.read(apiClientProvider).purchase(g.token, pkg.id);
+      ref.invalidate(walletProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('+${r.coinsAdded} 🪙  (ยอดใหม่ ${r.newBalance})'),
+          backgroundColor: const Color(0xFF3E8A25),
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ซื้อไม่สำเร็จ: $e')));
+    } finally {
+      if (mounted) setState(() => _busyPackageId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final packages = ref.watch(shopPackagesProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 0, 8, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '🛒  ร้านค้าเหรียญ',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'ตอนนี้ payment เป็น mock — กดซื้อแล้วเหรียญจะเข้าทันที',
+                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+              ),
+            ),
+            Flexible(
+              child: packages.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'โหลดร้านค้าไม่ได้: $e',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+                data: (list) => ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(6),
+                  itemCount: list.length,
+                  separatorBuilder: (_, i) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) => _PackageCard(
+                    pkg: list[i],
+                    busy: _busyPackageId == list[i].id,
+                    onBuy: _buy,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PackageCard extends StatelessWidget {
+  const _PackageCard({
+    required this.pkg,
+    required this.busy,
+    required this.onBuy,
+  });
+  final CoinPackage pkg;
+  final bool busy;
+  final void Function(CoinPackage) onBuy;
+
+  List<Color> get _bg => switch (pkg.id) {
+    'starter' => const [Color(0xFF2D8A6E), Color(0xFF1E6E54)],
+    'player' => const [Color(0xFF2D6E9E), Color(0xFF1E4D70)],
+    'vip' => const [Color(0xFFB8804A), Color(0xFF8A5A2F)],
+    'whale' => const [Color(0xFFE060A8), Color(0xFFA42B72)],
+    _ => const [Color(0xFF4A5560), Color(0xFF2A3540)],
+  };
+
+  String? get _badgeLabel => switch (pkg.badge) {
+    'popular' => 'ฮิตที่สุด',
+    'best_value' => 'คุ้มสุด',
+    _ => null,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: busy ? null : () => onBuy(pkg),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: _bg,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.25),
+              width: 1.5,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        pkg.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (_badgeLabel != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD24A),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _badgeLabel!,
+                            style: const TextStyle(
+                              color: Color(0xFF1A1A1A),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${pkg.coins} 🪙',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        '฿${pkg.priceTHB}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

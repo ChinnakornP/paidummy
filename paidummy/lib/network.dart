@@ -102,6 +102,42 @@ class ApiClient {
     return j['room_id'] as String;
   }
 
+  /// The server-defined coin shop menu.
+  Future<List<CoinPackage>> shopPackages(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/shop/packages'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['packages'] as List?) ?? const [])
+        .map((e) => CoinPackage.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Mock-payment purchase. Always succeeds today; returns the new wallet
+  /// balance and how many coins were credited.
+  Future<({int coinsAdded, int newBalance})> purchase(
+    String token,
+    String packageId,
+  ) async {
+    final r = await _c.post(
+      _u('/api/v1/shop/purchase'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'package_id': packageId}),
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'purchase failed');
+    }
+    return (
+      coinsAdded: (j['coins_added'] as num).toInt(),
+      newBalance: (j['new_balance'] as num).toInt(),
+    );
+  }
+
   Future<void> addBots(String token, String roomId, int count) async {
     await _c.post(
       _u('/api/v1/rooms/$roomId/bots'),

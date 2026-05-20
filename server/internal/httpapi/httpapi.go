@@ -34,6 +34,8 @@ type Server struct {
 	History  gin.HandlerFunc
 	Me       gin.HandlerFunc // wallet refresh: GET /api/v1/me
 	Tiers    gin.HandlerFunc // bet-tier menu: GET /api/v1/tiers
+	Packages gin.HandlerFunc // coin shop menu: GET /api/v1/shop/packages
+	Purchase gin.HandlerFunc // mock purchase: POST /api/v1/shop/purchase
 }
 
 const ctxGuestKey = "guest"
@@ -66,6 +68,12 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.Tiers != nil {
 			auth.GET("/tiers", s.Tiers)
+		}
+		if s.Packages != nil {
+			auth.GET("/shop/packages", s.Packages)
+		}
+		if s.Purchase != nil {
+			auth.POST("/shop/purchase", s.Purchase)
 		}
 	}
 

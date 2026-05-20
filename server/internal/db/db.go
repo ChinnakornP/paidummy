@@ -189,6 +189,63 @@ func (d *DB) LookupSession(ctx context.Context, token string) (GuestUser, bool, 
 	return g, true, nil
 }
 
+// ---- coin shop ----
+
+// CoinPackage is a purchasable bundle of in-game coins. The set is defined in
+// the server so the client can never invent a package id.
+type CoinPackage struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Coins    int64  `json:"coins"`
+	PriceTHB int    `json:"price_thb"`
+	Badge    string `json:"badge,omitempty"` // e.g. "popular"
+}
+
+// CoinPackages is the canonical shop menu. Adjust freely — order is preserved.
+var CoinPackages = []CoinPackage{
+	{ID: "starter", Title: "Starter", Coins: 1_000, PriceTHB: 29},
+	{ID: "player", Title: "Player", Coins: 5_000, PriceTHB: 99, Badge: "popular"},
+	{ID: "vip", Title: "VIP", Coins: 12_000, PriceTHB: 199},
+	{ID: "whale", Title: "Whale", Coins: 50_000, PriceTHB: 699, Badge: "best_value"},
+}
+
+// FindPackage returns the package matching id (and whether it exists).
+func FindPackage(id string) (CoinPackage, bool) {
+	for _, p := range CoinPackages {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return CoinPackage{}, false
+}
+
+// PurchasePackage atomically records a successful (mock) purchase and credits
+// the guest's wallet. Real payment integration will wrap this with a
+// provider-side capture before the credit. Returns the new balance.
+func (d *DB) PurchasePackage(ctx context.Context, guestID uuid.UUID, pkg CoinPackage) (int64, error) {
+	tx, err := d.Pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err = tx.Exec(ctx,
+		`INSERT INTO purchases (id, guest_id, package_id, coins, price_thb, status)
+		 VALUES ($1, $2, $3, $4, $5, 'mock_success')`,
+		uuid.New(), guestID, pkg.ID, pkg.Coins, pkg.PriceTHB); err != nil {
+		return 0, err
+	}
+	var newBal int64
+	if err = tx.QueryRow(ctx,
+		`UPDATE guest_users SET coins = coins + $2 WHERE id = $1 RETURNING coins`,
+		guestID, pkg.Coins).Scan(&newBal); err != nil {
+		return 0, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return newBal, nil
+}
+
 // ---- match / round persistence (used by the room layer) ----
 
 // CreateMatch records a match with its seated players.

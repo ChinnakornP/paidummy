@@ -37,6 +37,15 @@ final walletProvider = FutureProvider.autoDispose<int>((ref) async {
   return fresh.coins;
 });
 
+/// Server-defined coin shop menu (`GET /shop/packages`).
+final shopPackagesProvider = FutureProvider.autoDispose<List<CoinPackage>>((
+  ref,
+) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).shopPackages(g.token);
+});
+
 /// Server-defined bet-tier menu (`GET /tiers`).
 final tiersProvider = FutureProvider.autoDispose<List<int>>((ref) async {
   final g = ref.watch(sessionProvider);

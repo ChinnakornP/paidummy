@@ -158,36 +158,51 @@ class LobbyScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final g = ref.watch(sessionProvider);
-    final wallet = ref.watch(walletProvider);
+    final me = ref.watch(meProvider);
     final tiers = ref.watch(tiersProvider);
-    final coins = wallet.value ?? g?.coins ?? 0;
+    final liveGuest = me.value;
+    final coins = liveGuest?.coins ?? g?.coins ?? 0;
+    final rank = liveGuest?.rank;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A3548),
       body: SafeArea(
         child: Column(
           children: [
-            // (1) Top bar — guest name + live wallet.
+            // (1) Top bar — guest name + rank + live wallet + actions.
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      g?.name ?? '',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          g?.name ?? '',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (rank != null) _RankPill(rank: rank),
+                      ],
                     ),
                   ),
                   _WalletPill(
                     coins: coins,
-                    loading: wallet.isLoading,
-                    onRefresh: () => ref.invalidate(walletProvider),
+                    loading: me.isLoading,
+                    onRefresh: () => ref.invalidate(meProvider),
                   ),
                   const SizedBox(width: 6),
+                  // History sheet.
+                  IconButton(
+                    onPressed: () => _openHistory(context),
+                    icon: const Text('📜', style: TextStyle(fontSize: 22)),
+                    tooltip: 'ประวัติ',
+                  ),
                   // Open the coin shop sheet.
                   IconButton(
                     onPressed: () => _openShop(context, ref),
@@ -1729,6 +1744,278 @@ class _PillButton extends StatelessWidget {
 
 // ---- Decorative chrome (matches game_design_v1.html, no backend yet) ----
 
+/// Compact rank chip — gold gradient with ⭐ pips matching level + title.
+class _RankPill extends StatelessWidget {
+  const _RankPill({required this.rank});
+  final Rank rank;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFE9A3), Color(0xFFC89D3A)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black45,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              List.filled(rank.level + 1, '★').join(),
+              style: const TextStyle(color: Color(0xFF5A3A06), fontSize: 11),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              rank.title,
+              style: const TextStyle(
+                color: Color(0xFF3D2900),
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+            if (rank.nextTitle != null && rank.nextWins != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '(${rank.nextWins! - rank.wins} ครั้งสู่ ${rank.nextTitle})',
+                style: const TextStyle(color: Color(0xFF5A3A06), fontSize: 10),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the history bottom sheet — my recent match outcomes.
+Future<void> _openHistory(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(0xFF12313B),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => const _HistorySheet(),
+  );
+}
+
+/// Modal sheet listing the player's recent match outcomes with coin deltas.
+class _HistorySheet extends ConsumerWidget {
+  const _HistorySheet();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(coinHistoryProvider);
+    final stats = ref.watch(meProvider).value?.stats;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 0, 8, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '📜  ประวัติของฉัน',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            if (stats != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Row(
+                  children: [
+                    _StatChip(label: 'เล่น', value: '${stats.matchesPlayed}'),
+                    const SizedBox(width: 6),
+                    _StatChip(label: 'ชนะ', value: '${stats.matchesWon}'),
+                    const SizedBox(width: 6),
+                    _StatChip(
+                      label: 'กำไร',
+                      value: '${stats.lifetimeProfit} 🪙',
+                      positive: stats.lifetimeProfit >= 0,
+                    ),
+                  ],
+                ),
+              ),
+            Flexible(
+              child: history.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'โหลดประวัติไม่ได้: $e',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+                data: (list) {
+                  if (list.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'ยังไม่มีประวัติ — ลองเล่นสักรอบก่อน',
+                        style: TextStyle(color: Colors.white60),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(4),
+                    itemCount: list.length,
+                    separatorBuilder: (_, i) => const SizedBox(height: 6),
+                    itemBuilder: (_, i) => _HistoryRow(row: list[i]),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.value,
+    this.positive = true,
+  });
+  final String label;
+  final String value;
+  final bool positive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label ',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: positive
+                  ? const Color(0xFFFFD24A)
+                  : const Color(0xFFFF8A8A),
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryRow extends StatelessWidget {
+  const _HistoryRow({required this.row});
+  final CoinHistoryRow row;
+
+  @override
+  Widget build(BuildContext context) {
+    final pos = row.coinDelta >= 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border(
+          left: BorderSide(
+            color: pos ? const Color(0xFF6DC94A) : const Color(0xFFC0392B),
+            width: 4,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'เดิมพัน ${row.bet}  •  ${row.isWinner ? "ชนะ" : "แพ้"}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _formatTime(row.createdAt),
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${pos ? '+' : ''}${row.coinDelta} 🪙',
+                style: TextStyle(
+                  color: pos
+                      ? const Color(0xFF7FE08A)
+                      : const Color(0xFFFF8A8A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'ยอด ${row.balanceAfter}',
+                style: const TextStyle(color: Colors.white60, fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime t) {
+    final l = t.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${l.year}-${two(l.month)}-${two(l.day)}  ${two(l.hour)}:${two(l.minute)}';
+  }
+}
+
 /// Opens the coin-shop bottom sheet. Public-ish helper so both the lobby
 /// 🛒 icon and the in-game `_ShopButton` can trigger the same flow.
 Future<void> _openShop(BuildContext context, WidgetRef ref) {
@@ -1952,7 +2239,7 @@ class _ShopSheetState extends ConsumerState<_ShopSheet> {
     setState(() => _busyPackageId = pkg.id);
     try {
       final r = await ref.read(apiClientProvider).purchase(g.token, pkg.id);
-      ref.invalidate(walletProvider);
+      ref.invalidate(meProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

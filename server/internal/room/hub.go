@@ -665,6 +665,19 @@ func (r *Room) finishRound(ctx context.Context) {
 					coinDeltas[id.String()] = int(dv)
 				}
 				r.mu.Unlock()
+
+				// Persist per-player settlement rows — feeds /me/history,
+				// /rooms/:id/history, and rank stats.
+				settles := make([]db.SettlementRow, 0, len(d))
+				for id, dv := range d {
+					settles = append(settles, db.SettlementRow{
+						GuestID:      id,
+						CoinDelta:    int(dv),
+						BalanceAfter: b[id],
+						IsWinner:     id == wg,
+					})
+				}
+				_ = r.hub.db.RecordSettlement(ctx, mid, settles)
 			}
 		}
 		r.mu.Lock()

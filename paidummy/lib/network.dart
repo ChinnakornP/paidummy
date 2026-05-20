@@ -102,6 +102,33 @@ class ApiClient {
     return j['room_id'] as String;
   }
 
+  /// My recent match outcomes — coin delta, balance, win/lose.
+  Future<List<CoinHistoryRow>> coinHistory(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/me/history'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['history'] as List?) ?? const [])
+        .map((e) => CoinHistoryRow.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Recent finished matches inside one room.
+  Future<List<RoomHistoryMatch>> roomHistory(
+    String token,
+    String roomId,
+  ) async {
+    final r = await _c.get(
+      _u('/api/v1/rooms/$roomId/history'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['matches'] as List?) ?? const [])
+        .map((e) => RoomHistoryMatch.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// The server-defined coin shop menu.
   Future<List<CoinPackage>> shopPackages(String token) async {
     final r = await _c.get(

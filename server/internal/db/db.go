@@ -246,6 +246,209 @@ func (d *DB) PurchasePackage(ctx context.Context, guestID uuid.UUID, pkg CoinPac
 	return newBal, nil
 }
 
+// ---- rank ladder ----
+
+// Rank is the player's title derived from cumulative match wins.
+type Rank struct {
+	Title     string `json:"title"`
+	Level     int    `json:"level"`               // 0..N
+	Wins      int    `json:"wins"`                // current wins
+	NextTitle string `json:"next_title,omitempty"`
+	NextWins  int    `json:"next_wins,omitempty"` // wins needed for next rank
+}
+
+// rankLadder is the ordered (ascending) ยศ ladder. The first entry must be
+// the floor (wins ≥ 0).
+var rankLadder = []struct {
+	Wins  int
+	Title string
+}{
+	{0, "มือใหม่"},
+	{1, "มือสมัครเล่น"},
+	{5, "มือกลาง"},
+	{20, "มือเก๋า"},
+	{50, "เซียนไพ่"},
+	{150, "จอมยุทธ"},
+}
+
+// ComputeRank maps a win count to the highest ladder title earned plus the
+// remaining wins to the next rung (0 when already at the top).
+func ComputeRank(wins int) Rank {
+	if wins < 0 {
+		wins = 0
+	}
+	cur := rankLadder[0]
+	level := 0
+	for i, r := range rankLadder {
+		if wins >= r.Wins {
+			cur = r
+			level = i
+		}
+	}
+	out := Rank{Title: cur.Title, Level: level, Wins: wins}
+	if level+1 < len(rankLadder) {
+		next := rankLadder[level+1]
+		out.NextTitle = next.Title
+		out.NextWins = next.Wins
+	}
+	return out
+}
+
+// ---- coin/play history ----
+
+// GuestStats are the lifetime aggregates feeding the rank.
+type GuestStats struct {
+	MatchesPlayed  int   `json:"matches_played"`
+	MatchesWon     int   `json:"matches_won"`
+	LifetimeProfit int64 `json:"lifetime_profit"`
+}
+
+// LoadStats reads the guest's lifetime stats from match_settlements.
+func (d *DB) LoadStats(ctx context.Context, guestID uuid.UUID) (GuestStats, error) {
+	var s GuestStats
+	err := d.Pool.QueryRow(ctx, `
+		SELECT
+			COALESCE(COUNT(*), 0),
+			COALESCE(SUM(CASE WHEN is_winner THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(coin_delta), 0)
+		FROM match_settlements WHERE guest_id = $1`, guestID,
+	).Scan(&s.MatchesPlayed, &s.MatchesWon, &s.LifetimeProfit)
+	return s, err
+}
+
+// SettlementRow is one player's outcome of a finished match.
+type SettlementRow struct {
+	GuestID      uuid.UUID
+	CoinDelta    int
+	BalanceAfter int64
+	IsWinner     bool
+}
+
+// RecordSettlement persists one row per player for a finished match.
+func (d *DB) RecordSettlement(ctx context.Context, matchID uuid.UUID, rows []SettlementRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	tx, err := d.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	for _, r := range rows {
+		if _, err = tx.Exec(ctx,
+			`INSERT INTO match_settlements
+			   (id, match_id, guest_id, coin_delta, balance_after, is_winner)
+			 VALUES ($1,$2,$3,$4,$5,$6)`,
+			uuid.New(), matchID, r.GuestID, r.CoinDelta, r.BalanceAfter, r.IsWinner,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// CoinHistoryRow is one entry in the "my games" timeline.
+type CoinHistoryRow struct {
+	MatchID      uuid.UUID `json:"match_id"`
+	RoomID       string    `json:"room_id"`
+	Bet          int       `json:"bet"`
+	CoinDelta    int       `json:"coin_delta"`
+	BalanceAfter int64     `json:"balance_after"`
+	IsWinner     bool      `json:"is_winner"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// CoinHistory returns the guest's recent match outcomes, newest first.
+func (d *DB) CoinHistory(ctx context.Context, guestID uuid.UUID, limit int) ([]CoinHistoryRow, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := d.Pool.Query(ctx, `
+		SELECT m.id, m.room_id, COALESCE(m.bet, 0),
+		       s.coin_delta, s.balance_after, s.is_winner, s.created_at
+		  FROM match_settlements s
+		  JOIN matches m ON m.id = s.match_id
+		 WHERE s.guest_id = $1
+		 ORDER BY s.created_at DESC
+		 LIMIT $2`, guestID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CoinHistoryRow
+	for rows.Next() {
+		var r CoinHistoryRow
+		if err := rows.Scan(&r.MatchID, &r.RoomID, &r.Bet,
+			&r.CoinDelta, &r.BalanceAfter, &r.IsWinner, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// RoomHistoryPlayer is one row inside a room-history match record.
+type RoomHistoryPlayer struct {
+	Name      string `json:"name"`
+	CoinDelta int    `json:"coin_delta"`
+	IsWinner  bool   `json:"is_winner"`
+}
+
+// RoomHistoryMatch groups all per-player settlements for one finished match.
+type RoomHistoryMatch struct {
+	MatchID   uuid.UUID           `json:"match_id"`
+	Bet       int                 `json:"bet"`
+	FinishedAt *time.Time         `json:"finished_at,omitempty"`
+	Players   []RoomHistoryPlayer `json:"players"`
+}
+
+// RoomHistory returns recent finished matches in a room with each player's
+// settlement; rows are aggregated client-side per match.
+func (d *DB) RoomHistory(ctx context.Context, roomID string, limit int) ([]RoomHistoryMatch, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	rows, err := d.Pool.Query(ctx, `
+		SELECT m.id, COALESCE(m.bet, 0), m.finished_at,
+		       g.display_name, s.coin_delta, s.is_winner
+		  FROM matches m
+		  JOIN match_settlements s ON s.match_id = m.id
+		  JOIN guest_users g       ON g.id = s.guest_id
+		 WHERE m.room_id = $1
+		 ORDER BY m.created_at DESC, m.id, s.id
+		 LIMIT $2`, roomID, limit*4)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	matches := make(map[uuid.UUID]*RoomHistoryMatch)
+	order := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		var bet int
+		var finished *time.Time
+		var p RoomHistoryPlayer
+		if err := rows.Scan(&id, &bet, &finished, &p.Name, &p.CoinDelta, &p.IsWinner); err != nil {
+			return nil, err
+		}
+		m, ok := matches[id]
+		if !ok {
+			m = &RoomHistoryMatch{MatchID: id, Bet: bet, FinishedAt: finished}
+			matches[id] = m
+			order = append(order, id)
+		}
+		m.Players = append(m.Players, p)
+	}
+	out := make([]RoomHistoryMatch, 0, len(order))
+	for i, id := range order {
+		if i >= limit {
+			break
+		}
+		out = append(out, *matches[id])
+	}
+	return out, rows.Err()
+}
+
 // ---- match / round persistence (used by the room layer) ----
 
 // CreateMatch records a match with its seated players.

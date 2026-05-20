@@ -51,8 +51,10 @@ func main() {
 		History:  room.HistoryHandler(database),
 		Me:       room.MeHandler(database),
 		Tiers:    room.TiersHandler(),
-		Packages: room.PackagesHandler(),
-		Purchase: room.PurchaseHandler(database),
+		Packages:    room.PackagesHandler(),
+		Purchase:    room.PurchaseHandler(database),
+		MyHistory:   room.CoinHistoryHandler(database),
+		RoomHistory: room.RoomHistoryHandler(database),
 	}
 
 	httpServer := &http.Server{

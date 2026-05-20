@@ -28,13 +28,23 @@ final sessionProvider = StateNotifierProvider<SessionController, Guest?>(
   (ref) => SessionController(ref.read(apiClientProvider)),
 );
 
-/// Live wallet balance (`GET /me`). autoDispose so each return to the lobby
-/// refreshes after a match settles.
-final walletProvider = FutureProvider.autoDispose<int>((ref) async {
+/// Live "me" — wallet + rank + stats from `GET /me`. autoDispose so each
+/// return to the lobby refreshes after a match settles or a shop purchase.
+final meProvider = FutureProvider.autoDispose<Guest>((ref) async {
   final g = ref.watch(sessionProvider);
-  if (g == null) return 0;
-  final fresh = await ref.read(apiClientProvider).me(g.token);
-  return fresh.coins;
+  if (g == null) {
+    return const Guest(id: '', name: '', token: '');
+  }
+  return ref.read(apiClientProvider).me(g.token);
+});
+
+/// My recent match outcomes for the history sheet.
+final coinHistoryProvider = FutureProvider.autoDispose<List<CoinHistoryRow>>((
+  ref,
+) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).coinHistory(g.token);
 });
 
 /// Server-defined coin shop menu (`GET /shop/packages`).

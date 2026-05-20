@@ -186,7 +186,8 @@ func PurchaseHandler(database *db.DB) gin.HandlerFunc {
 	}
 }
 
-// MeHandler GET /api/v1/me — refresh the authenticated guest's wallet.
+// MeHandler GET /api/v1/me — wallet refresh + lifetime stats + rank, so the
+// client can render the rank pill in one round trip.
 func MeHandler(database *db.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		g, ok := guestFromCtx(c)
@@ -194,12 +195,55 @@ func MeHandler(database *db.DB) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 			return
 		}
-		coins, err := database.Coins(c.Request.Context(), g.ID)
+		ctx := c.Request.Context()
+		coins, err := database.Coins(ctx, g.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "wallet lookup failed"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"id": g.ID, "name": g.Name, "coins": coins})
+		stats, _ := database.LoadStats(ctx, g.ID) // best-effort
+		c.JSON(http.StatusOK, gin.H{
+			"id":    g.ID,
+			"name":  g.Name,
+			"coins": coins,
+			"stats": stats,
+			"rank":  db.ComputeRank(stats.MatchesWon),
+		})
+	}
+}
+
+// CoinHistoryHandler GET /api/v1/me/history — recent match results for the
+// authenticated guest with coin_delta and balance_after.
+func CoinHistoryHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		rows, err := database.CoinHistory(c.Request.Context(), g.ID, 50)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "history failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"history": rows})
+	}
+}
+
+// RoomHistoryHandler GET /api/v1/rooms/:id/history — recent finished matches
+// played in that room with each player's coin outcome.
+func RoomHistoryHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if _, ok := guestFromCtx(c); !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		matches, err := database.RoomHistory(c.Request.Context(), c.Param("id"), 20)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "history failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"matches": matches})
 	}
 }
 

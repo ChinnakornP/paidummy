@@ -81,7 +81,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
 | ✅ 6.1 | Push notifications | "ตาคุณแล้ว!" when the room is waiting on you. Needs FCM/APNs + a notification token table. (device_tokens table + register endpoint + Notifier interface/LogNotifier stub + client register skeleton; wire FCM/APNs for real delivery.) | M |
-| 6.2 | English (and other Thai dialect) localisation | Broader audience. `intl` package, `arb` files. Strings already centralised in `ui.dart`. | M |
+| ✅ 6.2 | English (and other Thai dialect) localisation | Broader audience. `intl` package, `arb` files. Strings already centralised in `ui.dart`. (flutter_localizations wired + th/en localeProvider + ref.t() string table + home language toggle; migrate remaining literals into the table / swap to gen-l10n arb later.) | M |
 | ✅ 6.3 | Real payment integration (replace mock) | Shop is mock today. PromptPay / TrueMoney / Apple-Google IAP. `PurchasePackage` already exists — wire a provider behind it. (Provider interface + MockProvider wired behind PurchaseHandler; PromptPay/TrueMoney/IAP stubs ready for real SDKs.) | L |
 | ✅ 6.4 | Crash reporting + analytics | Sentry/Crashlytics + a small event pipeline (action counts, funnel drop-offs). (AnalyticsService interface + debug-log mock; sign-in/quickplay events wired; swap impl for a real SDK.) | S |
 | ✅ 6.5 | Admin dashboard | Read-only web view of rooms, player counts, recent rounds, support tickets. | M |

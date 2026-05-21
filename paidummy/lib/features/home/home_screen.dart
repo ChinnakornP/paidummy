@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/analytics/analytics_service.dart';
+import '../../core/i18n/strings.dart';
 import '../../core/providers/index.dart';
 import '../../shared/widgets/index.dart';
 import '../tutorial/tutorial_sheet.dart';
@@ -107,14 +108,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      TextButton.icon(
-                        onPressed: () => showTutorial(context),
-                        icon: const Icon(Icons.help_outline,
-                            color: Color(0xFFFFE7A6), size: 18),
-                        label: const Text(
-                          'วิธีเล่น',
-                          style: TextStyle(color: Color(0xFFFFE7A6)),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => showTutorial(context),
+                            icon: const Icon(Icons.help_outline,
+                                color: Color(0xFFFFE7A6), size: 18),
+                            label: Text(
+                              ref.t('how_to_play'),
+                              style: const TextStyle(color: Color(0xFFFFE7A6)),
+                            ),
+                          ),
+                          // Language toggle (th ⇄ en).
+                          TextButton(
+                            onPressed: () {
+                              final cur = ref.read(localeProvider);
+                              ref.read(localeProvider.notifier).state =
+                                  cur.languageCode == 'th'
+                                      ? const Locale('en')
+                                      : const Locale('th');
+                            },
+                            child: Text(
+                              ref.watch(localeProvider).languageCode == 'th'
+                                  ? '🇹🇭 ไทย'
+                                  : '🇬🇧 EN',
+                              style: const TextStyle(color: Color(0xFFFFE7A6)),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

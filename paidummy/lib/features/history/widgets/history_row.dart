@@ -6,13 +6,17 @@ import 'package:flutter/material.dart';
 import '../../../core/models/index.dart';
 
 class HistoryRow extends StatelessWidget {
-  const HistoryRow({super.key, required this.row});
+  const HistoryRow({super.key, required this.row, this.onTap});
   final CoinHistoryRow row;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final pos = row.coinDelta >= 0;
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
@@ -65,6 +69,7 @@ class HistoryRow extends StatelessWidget {
             ],
           ),
         ],
+      ),
       ),
     );
   }

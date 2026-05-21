@@ -347,6 +347,18 @@ class ApiClient {
     }
   }
 
+  /// Round-by-round score log for a finished match.
+  Future<List<ReplayRound>> matchReplay(String token, String matchId) async {
+    final r = await _c.get(
+      _u('/api/v1/matches/$matchId/replay'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['rounds'] as List?) ?? const [])
+        .map((e) => ReplayRound.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Accepted friends.
   Future<List<Friend>> friends(String token) async {
     final r = await _c.get(

@@ -51,7 +51,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | --- | --- | --- | --- |
 | ✅ 3.1 | Reconnect mid-round | Network drops happen. Server already persists state in Redis; needs a client "reconnecting…" overlay + auto-resume. | M |
 | ✅ 3.2 | Disconnect protection (bot takeover) | Today the shot clock auto-discards once but the seat keeps stalling. A "play out as bot" toggle smooths real games. | S |
-| 3.3 | Replay / move log viewer | Stored event stream per match (already partly in `db.SaveRound`). Add a scrubbable viewer dialog. | L |
+| ✅ 3.3 | Replay / move log viewer | Stored event stream per match (already partly in `db.SaveRound`). Add a scrubbable viewer dialog. (Round-by-round score-log replay: MatchReplay query + GET /matches/:id/replay + a dialog opened by tapping a history row. Full move-by-move scrub needs event persistence later.) | L |
 | ✅ 3.4 | Report player + admin tools | One report button per seat + a small admin endpoint to mute/ban. | M |
 | ✅ 3.5 | Anti-collusion heuristics | Background job tracking suspicious patterns (always loses to same player, always picks dummy from same player). (30-min background scan flags winner→loser pairs co-occurring in ≥5 matches; collusion_flags table surfaced on the admin dashboard. More heuristics can layer on.) | L |
 

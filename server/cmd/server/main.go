@@ -72,6 +72,7 @@ func main() {
 		Purchase:    room.PurchaseHandler(database, payment.MockProvider{}),
 		MyHistory:   room.CoinHistoryHandler(database),
 		RoomHistory: room.RoomHistoryHandler(database),
+		Replay:      room.ReplayHandler(database),
 		DailyStatus: room.DailyStatusHandler(database),
 		DailyClaim:  room.DailyClaimHandler(database),
 		DeviceToken: room.DeviceTokenHandler(database),

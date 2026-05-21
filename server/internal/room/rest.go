@@ -505,6 +505,28 @@ func (a *RESTAdapter) AddBot(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"added": added})
 }
 
+// ReplayHandler GET /api/v1/matches/:id/replay — round-by-round score log
+// for a finished match.
+func ReplayHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if _, ok := guestFromCtx(c); !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		mid, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad match id"})
+			return
+		}
+		rounds, err := database.MatchReplay(c.Request.Context(), mid)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "replay failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"rounds": rounds})
+	}
+}
+
 // DailyStatusHandler GET /api/v1/me/daily — returns whether the guest can
 // claim today's bonus + the streak/reward they would earn.
 func DailyStatusHandler(database *db.DB) gin.HandlerFunc {

@@ -6,5 +6,6 @@ export 'friend.dart';
 export 'game.dart';
 export 'guest.dart';
 export 'mission.dart';
+export 'replay.dart';
 export 'room.dart';
 export 'shop.dart';

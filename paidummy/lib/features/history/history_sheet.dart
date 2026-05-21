@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/index.dart';
 import 'widgets/history_row.dart';
+import 'widgets/replay_dialog.dart';
 import 'widgets/stat_chip.dart';
 
 /// Opens the history bottom sheet — my recent match outcomes.
@@ -102,7 +103,10 @@ class HistorySheet extends ConsumerWidget {
                     padding: const EdgeInsets.all(4),
                     itemCount: list.length,
                     separatorBuilder: (_, i) => const SizedBox(height: 6),
-                    itemBuilder: (_, i) => HistoryRow(row: list[i]),
+                    itemBuilder: (_, i) => HistoryRow(
+                      row: list[i],
+                      onTap: () => showReplayDialog(context, list[i].matchId),
+                    ),
                   );
                 },
               ),

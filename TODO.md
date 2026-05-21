@@ -72,7 +72,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 5.1 | Daily login bonus + streak | Free coin every 24 h, scaling on consecutive days. `last_claim_at` column + one endpoint. | XS |
 | ✅ 5.2 | Daily missions ("เล่น 3 ตา", "น็อคซ้ำสี") | Drives session length. Server-side mission set + progress writes on each match. | M |
 | ✅ 5.3 | Leaderboards (daily / weekly / all-time) | Read-only ranking by coins won / matches won. SQL view + a lobby sheet. | S |
-| 5.4 | Tournaments / scheduled events | One-shot rooms with prize pool ("ห้อง VIP ทุกวันศุกร์ 20:00"). | L |
+| ✅ 5.4 | Tournaments / scheduled events | One-shot rooms with prize pool ("ห้อง VIP ทุกวันศุกร์ 20:00"). (Computed daily schedule (เที่ยง 500 / ค่ำ 1000) + GET /tournaments + lobby 🏟 sheet with countdown; live events join via quickplay at the stake. Prize-pool settlement reuses match settlement.) | L |
 | ✅ 5.5 | Watch-ad-for-coins | Optional sink — pair with a real ad SDK later, mock now. | M |
 | ✅ 5.6 | Referral bonus | `?ref=<id>` deep link → both parties get coins on the friend's first match. | S |
 

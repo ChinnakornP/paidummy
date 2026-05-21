@@ -8,6 +8,7 @@ import 'daily_bonus_button.dart';
 import 'friends_sheet.dart';
 import 'missions_sheet.dart';
 import 'ref_code_button.dart';
+import 'tournaments_sheet.dart';
 import 'wallet_pill.dart';
 
 class LobbyTopBar extends StatelessWidget {
@@ -107,6 +108,11 @@ class LobbyTopBar extends StatelessWidget {
             emoji: '👥',
             tooltip: 'เพื่อน',
             onTap: () => showFriendsSheet(context),
+          ),
+          LobbyIconButton(
+            emoji: '🏟',
+            tooltip: 'ทัวร์นาเมนต์',
+            onTap: () => showTournamentsSheet(context),
           ),
           LobbyIconButton(
             emoji: '📜',

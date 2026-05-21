@@ -73,6 +73,7 @@ func main() {
 		MyHistory:   room.CoinHistoryHandler(database),
 		RoomHistory: room.RoomHistoryHandler(database),
 		Replay:      room.ReplayHandler(database),
+		Tournaments: room.TournamentsHandler(),
 		DailyStatus: room.DailyStatusHandler(database),
 		DailyClaim:  room.DailyClaimHandler(database),
 		DeviceToken: room.DeviceTokenHandler(database),

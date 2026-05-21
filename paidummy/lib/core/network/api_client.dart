@@ -347,6 +347,18 @@ class ApiClient {
     }
   }
 
+  /// Upcoming scheduled tournaments.
+  Future<List<Tournament>> tournaments(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/tournaments'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['tournaments'] as List?) ?? const [])
+        .map((e) => Tournament.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Round-by-round score log for a finished match.
   Future<List<ReplayRound>> matchReplay(String token, String matchId) async {
     final r = await _c.get(

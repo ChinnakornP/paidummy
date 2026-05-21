@@ -79,6 +79,14 @@ final adStatusProvider = FutureProvider.autoDispose<
   return ref.read(apiClientProvider).adStatus(g.token);
 });
 
+/// Upcoming scheduled tournaments.
+final tournamentsProvider =
+    FutureProvider.autoDispose<List<Tournament>>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).tournaments(g.token);
+});
+
 /// The signed-in guest's accepted friends.
 final friendsProvider = FutureProvider.autoDispose<List<Friend>>((ref) async {
   final g = ref.watch(sessionProvider);

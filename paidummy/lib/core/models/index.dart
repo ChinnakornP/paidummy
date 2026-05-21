@@ -9,3 +9,4 @@ export 'mission.dart';
 export 'replay.dart';
 export 'room.dart';
 export 'shop.dart';
+export 'tournament.dart';

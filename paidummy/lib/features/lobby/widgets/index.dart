@@ -9,4 +9,5 @@ export 'lobby_top_bar.dart';
 export 'missions_sheet.dart';
 export 'ref_code_button.dart';
 export 'tier_card.dart';
+export 'tournaments_sheet.dart';
 export 'wallet_pill.dart';

@@ -40,6 +40,7 @@ type Server struct {
 	Tiers    gin.HandlerFunc // bet-tier menu: GET /api/v1/tiers
 	Packages gin.HandlerFunc // coin shop menu: GET /api/v1/shop/packages
 	Purchase gin.HandlerFunc // mock purchase: POST /api/v1/shop/purchase
+	Tournaments gin.HandlerFunc // GET /api/v1/tournaments
 
 	MyHistory   gin.HandlerFunc // GET /api/v1/me/history — coin timeline
 	RoomHistory gin.HandlerFunc // GET /api/v1/rooms/:id/history — table log
@@ -117,6 +118,9 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.Replay != nil {
 			auth.GET("/matches/:id/replay", s.Replay)
+		}
+		if s.Tournaments != nil {
+			auth.GET("/tournaments", s.Tournaments)
 		}
 		if s.DailyStatus != nil {
 			auth.GET("/me/daily", s.DailyStatus)

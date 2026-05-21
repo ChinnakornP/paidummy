@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/andaseacode/paidummy-server/internal/db"
+	"github.com/andaseacode/paidummy-server/internal/payment"
 	"github.com/andaseacode/paidummy-server/internal/session"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -257,7 +258,7 @@ func PackagesHandler() gin.HandlerFunc {
 // payment that always succeeds, credits the wallet atomically, returns the
 // new balance and the coins added. Real payment will wrap this with a
 // provider capture step before db.PurchasePackage.
-func PurchaseHandler(database *db.DB) gin.HandlerFunc {
+func PurchaseHandler(database *db.DB, pay payment.Provider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		g, ok := guestFromCtx(c)
 		if !ok {
@@ -273,13 +274,25 @@ func PurchaseHandler(database *db.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unknown package_id"})
 			return
 		}
+		// 1) Capture payment with the provider (mock → always OK).
+		cap, err := pay.Capture(c.Request.Context(), g.ID, pkg)
+		if err != nil {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error":    "payment capture failed",
+				"provider": pay.Name(),
+			})
+			return
+		}
+		// 2) Only then credit the wallet.
 		bal, err := database.PurchasePackage(c.Request.Context(), g.ID, pkg)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "purchase failed"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"status":      "mock_success",
+			"status":      "captured",
+			"provider":    cap.Provider,
+			"txn_id":      cap.TxnID,
 			"package_id":  pkg.ID,
 			"coins_added": pkg.Coins,
 			"new_balance": bal,

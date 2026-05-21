@@ -15,6 +15,7 @@ import (
 	"github.com/andaseacode/paidummy-server/internal/config"
 	"github.com/andaseacode/paidummy-server/internal/db"
 	"github.com/andaseacode/paidummy-server/internal/httpapi"
+	"github.com/andaseacode/paidummy-server/internal/payment"
 	"github.com/andaseacode/paidummy-server/internal/room"
 	"github.com/andaseacode/paidummy-server/internal/session"
 	"github.com/andaseacode/paidummy-server/internal/store"
@@ -53,7 +54,7 @@ func main() {
 		Me:       room.MeHandler(database),
 		Tiers:    room.TiersHandler(hub),
 		Packages:    room.PackagesHandler(),
-		Purchase:    room.PurchaseHandler(database),
+		Purchase:    room.PurchaseHandler(database, payment.MockProvider{}),
 		MyHistory:   room.CoinHistoryHandler(database),
 		RoomHistory: room.RoomHistoryHandler(database),
 		DailyStatus: room.DailyStatusHandler(database),

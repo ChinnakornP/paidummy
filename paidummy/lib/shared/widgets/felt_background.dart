@@ -1,23 +1,25 @@
-/// Shared felt-table background used by Home, Lobby, and Game.
+/// Shared felt-table background used by Home, Lobby, and Game. Reads the
+/// active cosmetic theme from feltThemeProvider so a skin change recolours
+/// every screen at once.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class FeltBackground extends StatelessWidget {
+import '../../core/theme/felt_theme.dart';
+
+class FeltBackground extends ConsumerWidget {
   const FeltBackground({super.key});
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(feltThemeProvider);
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.1,
-          colors: [
-            Color(0xFF1B6A4A), // bright felt centre
-            Color(0xFF0D4733), // deeper felt
-            Color(0xFF2A1212), // outer maroon vignette
-          ],
-          stops: [0.0, 0.55, 1.0],
+          colors: [p.centre, p.mid, p.outer],
+          stops: const [0.0, 0.55, 1.0],
         ),
       ),
       child: CustomPaint(

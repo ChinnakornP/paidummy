@@ -435,6 +435,22 @@ class ApiClient {
     );
   }
 
+  /// Sets the cosmetic felt theme to one of the allowed ids.
+  Future<void> setTheme(String token, String theme) async {
+    final r = await _c.patch(
+      _u('/api/v1/me/theme'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'theme': theme}),
+    );
+    if (r.statusCode >= 300) {
+      final j = jsonDecode(r.body) as Map<String, dynamic>;
+      throw Exception((j['error'] as String?) ?? 'set theme failed');
+    }
+  }
+
   /// Spins up a solo training room (host + 3 bots) that doesn't settle
   /// coins. Returns the new room id.
   Future<String> startPractice(String token) async {

@@ -1,0 +1,1 @@
+ALTER TABLE guest_users DROP COLUMN IF EXISTS theme;

@@ -347,6 +347,10 @@ func MeHandler(database *db.DB) gin.HandlerFunc {
 			avatar = db.DefaultAvatar
 		}
 		refCode, _ := database.RefCode(ctx, g.ID)
+		theme, _ := database.Theme(ctx, g.ID)
+		if theme == "" {
+			theme = db.DefaultTheme
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"id":       g.ID,
 			"name":     g.Name,
@@ -356,7 +360,36 @@ func MeHandler(database *db.DB) gin.HandlerFunc {
 			"avatar":   avatar,
 			"avatars":  db.AllowedAvatars,
 			"ref_code": refCode,
+			"theme":    theme,
+			"themes":   db.AllowedThemes,
 		})
+	}
+}
+
+// ThemeHandler PATCH /api/v1/me/theme {"theme": "..."} — sets the cosmetic
+// felt theme. 400 on unknown id.
+func ThemeHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			Theme string `json:"theme"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		if err := database.SetTheme(c.Request.Context(), g.ID, req.Theme); err != nil {
+			if errors.Is(err, db.ErrInvalidTheme) {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": err.Error(), "allowed": db.AllowedThemes,
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "set theme failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"theme": req.Theme})
 	}
 }
 

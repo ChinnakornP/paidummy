@@ -137,6 +137,42 @@ class ProfileDialog extends ConsumerWidget {
                 style: TextStyle(color: Colors.white38, fontSize: 11),
               ),
             ],
+            if (isSelf && (me?.allowedThemes ?? const []).isNotEmpty) ...[
+              const Divider(color: Colors.white24, height: 22),
+              const Text(
+                'ธีมโต๊ะ',
+                style: TextStyle(
+                  color: Color(0xFFFFE7A6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final t in me!.allowedThemes)
+                    ChoiceChip(
+                      label: Text(t),
+                      selected: t == me.theme,
+                      onSelected: (_) async {
+                        final g = ref.read(sessionProvider);
+                        if (g == null) return;
+                        try {
+                          await ref.read(apiClientProvider).setTheme(g.token, t);
+                          ref.invalidate(meProvider);
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('เปลี่ยนธีมไม่ได้: $e')),
+                          );
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ],
             if (isSelf && (me?.allowedAvatars ?? const []).isNotEmpty) ...[
               const Divider(color: Colors.white24, height: 22),
               const Text(

@@ -49,6 +49,7 @@ type Server struct {
 
 	Leaderboard gin.HandlerFunc // GET /api/v1/leaderboard?period=...
 	Avatar      gin.HandlerFunc // PATCH /api/v1/me/avatar
+	Theme       gin.HandlerFunc // PATCH /api/v1/me/theme
 
 	Missions     gin.HandlerFunc // GET  /api/v1/me/missions
 	MissionClaim gin.HandlerFunc // POST /api/v1/me/missions/:id/claim
@@ -124,6 +125,9 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.Avatar != nil {
 			auth.PATCH("/me/avatar", s.Avatar)
+		}
+		if s.Theme != nil {
+			auth.PATCH("/me/theme", s.Theme)
 		}
 		if s.Missions != nil {
 			auth.GET("/me/missions", s.Missions)

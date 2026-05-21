@@ -12,6 +12,8 @@ class Guest {
     this.avatar = '🙂',
     this.allowedAvatars = const [],
     this.refCode = '',
+    this.theme = 'classic',
+    this.allowedThemes = const [],
   });
   final String id;
   final String name;
@@ -25,6 +27,10 @@ class Guest {
   /// Shareable referral handle (first 8 hex of guest id). Empty until /me
   /// returns the field on older server binaries.
   final String refCode;
+  /// Selected cosmetic felt theme id (e.g. 'classic', 'midnight').
+  final String theme;
+  /// Server-authoritative theme id list. Empty until /me responds.
+  final List<String> allowedThemes;
 
   factory Guest.fromJson(Map<String, dynamic> j) => Guest(
     id: j['id'] as String? ?? '',
@@ -42,6 +48,10 @@ class Guest {
         .map((e) => e as String)
         .toList(),
     refCode: j['ref_code'] as String? ?? '',
+    theme: j['theme'] as String? ?? 'classic',
+    allowedThemes: ((j['themes'] as List?) ?? const [])
+        .map((e) => e as String)
+        .toList(),
   );
 }
 

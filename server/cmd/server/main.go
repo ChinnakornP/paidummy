@@ -62,6 +62,7 @@ func main() {
 		DeviceToken: room.DeviceTokenHandler(database),
 		Leaderboard:  room.LeaderboardHandler(database),
 		Avatar:       room.AvatarHandler(database),
+		Theme:        room.ThemeHandler(database),
 		Missions:     room.MissionsHandler(database),
 		MissionClaim: room.ClaimMissionHandler(database),
 

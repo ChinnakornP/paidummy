@@ -274,6 +274,26 @@ class ApiClient {
     }
   }
 
+  /// Reports another player. [reason] is free text (capped server-side).
+  Future<void> reportPlayer(
+    String token,
+    String targetId,
+    String reason,
+  ) async {
+    final r = await _c.post(
+      _u('/api/v1/reports'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'target_id': targetId, 'reason': reason}),
+    );
+    if (r.statusCode >= 300) {
+      final j = jsonDecode(r.body) as Map<String, dynamic>;
+      throw Exception((j['error'] as String?) ?? 'report failed');
+    }
+  }
+
   /// Accepted friends.
   Future<List<Friend>> friends(String token) async {
     final r = await _c.get(

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS reports;
+ALTER TABLE guest_users DROP COLUMN IF EXISTS banned;

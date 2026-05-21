@@ -26,6 +26,8 @@ type RoomAPI interface {
 	QuickPlay(c *gin.Context)
 	Practice(c *gin.Context)
 	RoomInfo(c *gin.Context)
+	AdminRooms(c *gin.Context)
+	AdminDashboard(c *gin.Context)
 }
 
 // Server bundles handler dependencies.
@@ -55,6 +57,12 @@ type Server struct {
 	FriendRequests gin.HandlerFunc // GET  /api/v1/me/friends/requests
 	FriendRequest  gin.HandlerFunc // POST /api/v1/me/friends/request
 	FriendAccept   gin.HandlerFunc // POST /api/v1/me/friends/accept
+
+	Report        gin.HandlerFunc // POST /api/v1/reports
+	AdminBan      gin.HandlerFunc // POST /api/v1/admin/ban
+	AdminReports  gin.HandlerFunc // GET  /api/v1/admin/reports
+	AdminToken    string          // shared secret for /admin* routes
+	IsBanned      func(string) bool // optional ban gate for authed players
 }
 
 const ctxGuestKey = "guest"
@@ -132,6 +140,29 @@ func (s *Server) Router() *gin.Engine {
 		if s.FriendAccept != nil {
 			auth.POST("/me/friends/accept", s.FriendAccept)
 		}
+		if s.Report != nil {
+			auth.POST("/reports", s.Report)
+		}
+	}
+
+	// Admin routes — gated by a shared token (X-Admin-Token header or
+	// ?token= query), separate from the player session.
+	admin := v1.Group("/admin")
+	admin.Use(s.adminMiddleware())
+	{
+		if s.Rooms != nil {
+			admin.GET("/rooms", s.Rooms.AdminRooms)
+		}
+		if s.AdminReports != nil {
+			admin.GET("/reports", s.AdminReports)
+		}
+		if s.AdminBan != nil {
+			admin.POST("/ban", s.AdminBan)
+		}
+	}
+	if s.Rooms != nil {
+		// Read-only HTML dashboard, same token gate.
+		r.GET("/admin", s.adminGate(), s.Rooms.AdminDashboard)
 	}
 
 	if s.WS != nil {
@@ -161,6 +192,7 @@ func (s *Server) createGuest(c *gin.Context) {
 }
 
 // authMiddleware resolves a Bearer token to a guest and stores it in context.
+// Banned guests are rejected with 403.
 func (s *Server) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.GetHeader("Authorization")
@@ -170,9 +202,48 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid session"})
 			return
 		}
+		if s.IsBanned != nil && s.IsBanned(g.ID.String()) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "account suspended"})
+			return
+		}
 		c.Set(ctxGuestKey, g)
 		c.Next()
 	}
+}
+
+// adminMiddleware gates JSON admin endpoints by the shared admin token.
+func (s *Server) adminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !s.adminTokenOK(c) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "admin token required"})
+			return
+		}
+		c.Next()
+	}
+}
+
+// adminGate is the same check for the HTML dashboard (sends plain text on
+// failure so a browser shows something sensible).
+func (s *Server) adminGate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !s.adminTokenOK(c) {
+			c.String(http.StatusUnauthorized, "admin token required (?token=...)")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func (s *Server) adminTokenOK(c *gin.Context) bool {
+	if s.AdminToken == "" {
+		return false
+	}
+	tok := c.GetHeader("X-Admin-Token")
+	if tok == "" {
+		tok = c.Query("token")
+	}
+	return tok == s.AdminToken
 }
 
 // GuestFromCtx extracts the authenticated guest set by authMiddleware.

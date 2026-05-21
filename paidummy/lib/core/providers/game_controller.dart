@@ -165,6 +165,11 @@ class GameController extends StateNotifier<GameView> {
   /// Requests a "ช่วยคิด" suggestion from the server for the current turn.
   void requestSuggestion() => _ws.send('suggest');
 
+  /// Reports the player at [seat] with a free-text [reason]. The server
+  /// resolves the seat to a guest id so opponent ids never reach the client.
+  void reportSeat(int seat, String reason) =>
+      _ws.send('report', {'seat': seat, 'reason': reason});
+
   /// Clears the consumed suggestion so the snackbar only fires once.
   void clearSuggestion() {
     if (state.lastSuggestion == null) return;

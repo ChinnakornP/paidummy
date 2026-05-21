@@ -19,6 +19,7 @@ import (
 	"github.com/andaseacode/paidummy-server/internal/session"
 	"github.com/andaseacode/paidummy-server/internal/store"
 	"github.com/andaseacode/paidummy-server/internal/ws"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -66,6 +67,18 @@ func main() {
 		FriendRequests: room.FriendRequestsHandler(database),
 		FriendRequest:  room.FriendRequestHandler(database),
 		FriendAccept:   room.FriendAcceptHandler(database),
+
+		Report:       room.ReportHandler(database),
+		AdminBan:     room.AdminBanHandler(database),
+		AdminReports: room.AdminReportsHandler(database),
+		AdminToken:   cfg.AdminToken,
+		IsBanned: func(id string) bool {
+			gid, err := uuid.Parse(id)
+			if err != nil {
+				return false
+			}
+			return database.IsBanned(context.Background(), gid)
+		},
 	}
 
 	httpServer := &http.Server{

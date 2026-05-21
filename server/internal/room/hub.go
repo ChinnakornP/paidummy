@@ -652,6 +652,8 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 		r.handleBotTakeover(guestID, data)
 	case "suggest":
 		r.handleSuggest(guestID)
+	case "report":
+		r.handleReport(ctx, guestID, data)
 	case "draw_deck", "draw_discard", "meld", "layoff", "knock", "auto_knock", "discard":
 		r.handleGameAction(ctx, guestID, typ, data)
 	default:
@@ -663,6 +665,36 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 // the tail rather than rejecting the message so the user isn't punished
 // for a long paste.
 const chatMaxLen = 200
+
+// handleReport files a report against the player at the given seat. The
+// client reports by seat (it never sees opponent guest ids); the room
+// resolves the target here and persists via db.CreateReport.
+func (r *Room) handleReport(ctx context.Context, guestID string, data json.RawMessage) {
+	var payload struct {
+		Seat   int    `json:"seat"`
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return
+	}
+	r.mu.Lock()
+	if payload.Seat < 0 || payload.Seat >= len(r.seats) {
+		r.mu.Unlock()
+		return
+	}
+	target := r.seats[payload.Seat].GuestID
+	r.mu.Unlock()
+	if target == guestID {
+		return
+	}
+	reporter, e1 := uuid.Parse(guestID)
+	tgt, e2 := uuid.Parse(target)
+	if e1 != nil || e2 != nil {
+		return
+	}
+	_ = r.hub.db.CreateReport(ctx, reporter, tgt, payload.Reason)
+	r.sendTo(guestID, "report_ack", map[string]any{"seat": payload.Seat})
+}
 
 // handleSuggest computes a single recommended move for the requesting
 // player (the "ช่วยคิด" hint) and replies privately. Read-only; available

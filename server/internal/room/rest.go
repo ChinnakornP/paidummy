@@ -2,7 +2,10 @@ package room
 
 import (
 	"errors"
+	"html"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/andaseacode/paidummy-server/internal/db"
 	"github.com/andaseacode/paidummy-server/internal/session"
@@ -473,6 +476,142 @@ func DailyClaimHandler(database *db.DB) gin.HandlerFunc {
 			"new_balance": bal,
 		})
 	}
+}
+
+// ReportHandler POST /api/v1/reports {"target_id","reason"} — one player
+// reports another. Append-only; moderation happens out of band.
+func ReportHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			TargetID string `json:"target_id"`
+			Reason   string `json:"reason"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		target, perr := uuid.Parse(req.TargetID)
+		if perr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad target_id"})
+			return
+		}
+		if target == g.ID {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot report yourself"})
+			return
+		}
+		if err := database.CreateReport(c.Request.Context(), g.ID, target, req.Reason); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "report failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	}
+}
+
+// AdminBanHandler POST /api/v1/admin/ban {"guest_id","banned"} — admin-gated.
+func AdminBanHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			GuestID string `json:"guest_id"`
+			Banned  bool   `json:"banned"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		id, perr := uuid.Parse(req.GuestID)
+		if perr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad guest_id"})
+			return
+		}
+		if err := database.SetBanned(c.Request.Context(), id, req.Banned); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "ban failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"guest_id": id, "banned": req.Banned})
+	}
+}
+
+// AdminReportsHandler GET /api/v1/admin/reports — recent reports.
+func AdminReportsHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rows, err := database.RecentReports(c.Request.Context(), 100)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "reports failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"reports": rows})
+	}
+}
+
+// AdminRooms GET /api/v1/admin/rooms — live room snapshot for the dashboard.
+func (a *RESTAdapter) AdminRooms(c *gin.Context) {
+	rooms := a.hub.OpenRooms()
+	out := make([]gin.H, 0, len(rooms))
+	players := 0
+	for _, r := range rooms {
+		r.mu.Lock()
+		seats := len(r.seats)
+		out = append(out, gin.H{
+			"id": r.ID, "name": r.Name, "players": seats,
+			"max": r.MaxPlayers, "bet": r.Bet, "started": r.state != nil,
+			"practice": r.Practice, "locked": r.Password != "",
+		})
+		players += seats
+		r.mu.Unlock()
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"rooms": out, "room_count": len(out), "player_count": players,
+	})
+}
+
+// AdminDashboard GET /admin?token=... — a minimal read-only HTML view of
+// live rooms + recent reports. Token-gated (query or X-Admin-Token header,
+// checked by the caller's middleware). Intentionally dependency-free HTML.
+func (a *RESTAdapter) AdminDashboard(c *gin.Context) {
+	rooms := a.hub.OpenRooms()
+	players := 0
+	var rb strings.Builder
+	for _, r := range rooms {
+		r.mu.Lock()
+		seats := len(r.seats)
+		players += seats
+		started := "lobby"
+		if r.state != nil {
+			started = "playing"
+		}
+		rb.WriteString("<tr><td>" + htmlEscape(r.Name) + "</td><td>" +
+			itoa(seats) + "/" + itoa(r.MaxPlayers) + "</td><td>" +
+			itoa(r.Bet) + "</td><td>" + started + "</td></tr>")
+		r.mu.Unlock()
+	}
+	reports, _ := a.db.RecentReports(c.Request.Context(), 50)
+	var pb strings.Builder
+	for _, rep := range reports {
+		pb.WriteString("<tr><td>" + rep.CreatedAt.Format("01-02 15:04") +
+			"</td><td>" + htmlEscape(rep.Reporter) + "</td><td>" +
+			htmlEscape(rep.Target) + "</td><td>" + htmlEscape(rep.Reason) +
+			"</td></tr>")
+	}
+	html := "<!doctype html><meta charset=utf-8><title>Pai Dummy admin</title>" +
+		"<style>body{font-family:system-ui;margin:24px;background:#0d1b2a;color:#eee}" +
+		"table{border-collapse:collapse;margin:12px 0;width:100%}" +
+		"th,td{border:1px solid #345;padding:6px 10px;text-align:left}" +
+		"th{background:#1b2a3a}h1{color:#ffd24a}h2{margin-top:28px}</style>" +
+		"<h1>Pai Dummy — admin</h1>" +
+		"<p>Open rooms: <b>" + itoa(len(rooms)) + "</b> · seated players: <b>" +
+		itoa(players) + "</b></p>" +
+		"<h2>Rooms</h2><table><tr><th>Name</th><th>Players</th><th>Bet</th><th>State</th></tr>" +
+		rb.String() + "</table>" +
+		"<h2>Recent reports</h2><table><tr><th>When</th><th>By</th><th>Target</th><th>Reason</th></tr>" +
+		pb.String() + "</table>"
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+func itoa(n int) string {
+	return strconv.Itoa(n)
+}
+
+func htmlEscape(s string) string {
+	return html.EscapeString(s)
 }
 
 // FriendsHandler GET /api/v1/me/friends — accepted friends.

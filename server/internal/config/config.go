@@ -14,6 +14,7 @@ type Config struct {
 	RedisAddr  string        // redis host:port
 	SessionTTL time.Duration // guest session lifetime
 	LogLevel   string        // zerolog level name
+	AdminToken string        // shared secret gating /api/v1/admin/* + /admin
 }
 
 func env(key, def string) string {
@@ -35,5 +36,6 @@ func Load() Config {
 		RedisAddr:  env("REDIS_ADDR", "localhost:6390"),
 		SessionTTL: ttl,
 		LogLevel:   env("LOG_LEVEL", "debug"),
+		AdminToken: env("ADMIN_TOKEN", "dev-admin"),
 	}
 }

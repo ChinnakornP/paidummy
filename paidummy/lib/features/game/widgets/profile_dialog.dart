@@ -181,11 +181,57 @@ class ProfileDialog extends ConsumerWidget {
         ),
       ),
       actions: [
+        if (!isSelf)
+          TextButton(
+            onPressed: () => _report(context, ref),
+            child: const Text(
+              '🚩 รายงาน',
+              style: TextStyle(color: Color(0xFFFF8A8A)),
+            ),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('ปิด'),
         ),
       ],
+    );
+  }
+
+  Future<void> _report(BuildContext context, WidgetRef ref) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (c) {
+        final ctl = TextEditingController();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0F2E22),
+          title: const Text('รายงานผู้เล่น'),
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'เหตุผล (เช่น พฤติกรรมไม่เหมาะสม)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, ctl.text.trim()),
+              child: const Text('ส่ง'),
+            ),
+          ],
+        );
+      },
+    );
+    if (reason == null) return;
+    ref.read(gameControllerProvider.notifier).reportSeat(player.seat, reason);
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('ส่งรายงานแล้ว ขอบคุณที่ช่วยดูแลชุมชน')),
     );
   }
 

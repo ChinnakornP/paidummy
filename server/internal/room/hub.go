@@ -55,6 +55,10 @@ type Room struct {
 	// Practice rooms run the full ruleset but do NOT settle coins at match
 	// end and are not surfaced to QuickJoin (private to their creator).
 	Practice bool
+	// BotLevel tunes auto-played seats: "easy" (naive draw/dump), "normal"
+	// (solver-driven melds + discards), "hard" (also knocks the moment a
+	// going-out plan exists). Defaults to "normal".
+	BotLevel string
 	// Password gates Join when non-empty. Stored verbatim — never logged.
 	Password string
 	// TurnTimerSec overrides the default 60 s shot clock per turn. 0 means
@@ -141,6 +145,8 @@ type CreateOpts struct {
 	TargetScore  int
 	Bet          int
 	TurnTimerSec int
+	BotLevel     string // "easy" | "normal" | "hard"; empty → "normal"
+	MinMeldLen   int    // variant rule: min cards per meld (3 default, 4 = harder)
 }
 
 // CreateRoom registers a new open room hosted by hostGuest.
@@ -162,15 +168,26 @@ func (h *Hub) CreateRoomFull(ctx context.Context, hostGuest, hostName string, op
 	if opts.TargetScore > 0 {
 		rs.TargetScore = opts.TargetScore
 	}
+	// Variant rule: a custom room may require larger melds (3 → 4).
+	if opts.MinMeldLen == 3 || opts.MinMeldLen == 4 {
+		rs.MinMeldLen = opts.MinMeldLen
+	}
 	bet := opts.Bet
 	if bet <= 0 {
 		bet = 100 // default stake, like the classic "เดิมพัน 100"
+	}
+	level := opts.BotLevel
+	switch level {
+	case "easy", "normal", "hard":
+	default:
+		level = "normal"
 	}
 	r := &Room{
 		ID: uuid.NewString(), Name: opts.Name, MaxPlayers: max,
 		TargetScore: rs.TargetScore, Bet: bet, Host: hostGuest,
 		Password:     opts.Password,
 		TurnTimerSec: opts.TurnTimerSec,
+		BotLevel:     level,
 		rules:        rs, scores: map[string]int{},
 		coins: map[string]int64{}, hub: h,
 	}
@@ -222,8 +239,10 @@ func (h *Hub) QuickJoin(ctx context.Context, guestID, guestName string, bet int)
 
 // CreatePractice spins up a solo training room (host + 3 bots, no coin
 // settlement). Returns the seated, ready-to-play room.
-func (h *Hub) CreatePractice(ctx context.Context, guestID, guestName string) (*Room, error) {
-	r := h.CreateRoom(ctx, guestID, guestName, "ฝึกซ้อม", 4, 0, 0)
+func (h *Hub) CreatePractice(ctx context.Context, guestID, guestName, difficulty string) (*Room, error) {
+	r := h.CreateRoomFull(ctx, guestID, guestName, CreateOpts{
+		Name: "ฝึกซ้อม", MaxPlayers: 4, BotLevel: difficulty,
+	})
 	r.mu.Lock()
 	r.Practice = true
 	r.Bet = 0
@@ -540,6 +559,10 @@ func (r *Room) autoPlay(ctx context.Context) {
 	}
 	r.mu.Unlock()
 
+	r.mu.Lock()
+	level := r.BotLevel
+	r.mu.Unlock()
+
 	if phase == game.PhaseDraw {
 		r.HandleMessage(ctx, guestID, "draw_deck", []byte("{}"))
 		// After the draw the round could be over (deck exhaust); re-check.
@@ -553,11 +576,71 @@ func (r *Room) autoPlay(ctx context.Context) {
 		discardCard = r.state.Players[turn].Hand[0].String()
 		r.mu.Unlock()
 	}
+
+	// "normal"/"hard" bots play through the solver: lay down melds + layoffs,
+	// knock when possible (hard), then discard the recommended card. "easy"
+	// keeps the naive draw-and-dump behaviour.
+	if level != "easy" {
+		r.autoPlaySmart(ctx, guestID, turn, level)
+		return
+	}
+
 	if discardCard == "" {
 		return
 	}
 	raw, _ := json.Marshal(map[string]string{"card": discardCard})
 	r.HandleMessage(ctx, guestID, "discard", raw)
+}
+
+// autoPlaySmart drives a bot through its meld phase using the same hint
+// engine humans get: lay every available meld/layoff, knock if "hard" and a
+// going-out plan exists, then discard the suggested card. Bounded so a
+// pathological suggestion loop can't spin forever.
+func (r *Room) autoPlaySmart(ctx context.Context, guestID string, turn int, level string) {
+	for i := 0; i < 8; i++ {
+		r.mu.Lock()
+		if r.state == nil || r.state.RoundOver ||
+			r.state.Turn != turn || r.state.Phase != game.PhaseMeld {
+			r.mu.Unlock()
+			return
+		}
+		canKnock := level == "hard" && game.CanAutoKnock(r.state, turn)
+		sug := game.SuggestMove(r.state, turn)
+		r.mu.Unlock()
+
+		if canKnock {
+			r.HandleMessage(ctx, guestID, "auto_knock", []byte("{}"))
+			return
+		}
+		switch sug.Kind {
+		case "meld":
+			raw, _ := json.Marshal(map[string]any{"cards": sug.Cards})
+			r.HandleMessage(ctx, guestID, "meld", raw)
+		case "layoff":
+			raw, _ := json.Marshal(map[string]any{
+				"meld_id": sug.MeldID, "cards": sug.Cards,
+			})
+			r.HandleMessage(ctx, guestID, "layoff", raw)
+		default: // discard (or unknown) ends the turn
+			card := ""
+			if len(sug.Cards) > 0 {
+				card = sug.Cards[0]
+			} else {
+				r.mu.Lock()
+				if r.state != nil && turn < len(r.state.Players) &&
+					len(r.state.Players[turn].Hand) > 0 {
+					card = r.state.Players[turn].Hand[0].String()
+				}
+				r.mu.Unlock()
+			}
+			if card == "" {
+				return
+			}
+			raw, _ := json.Marshal(map[string]string{"card": card})
+			r.HandleMessage(ctx, guestID, "discard", raw)
+			return
+		}
+	}
 }
 
 // evaluateCountdown re-decides the auto-start timing for the current seat

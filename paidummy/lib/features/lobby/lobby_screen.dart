@@ -107,14 +107,16 @@ class LobbyScreen extends ConsumerWidget {
                       _LobbyActionPill(
                         emoji: '🎯',
                         label: 'ฝึกซ้อมกับบอท',
-                        sub: 'ไม่เสียเหรียญ',
+                        sub: 'เลือกระดับบอท',
                         onTap: () async {
                           final g = ref.read(sessionProvider);
                           if (g == null) return;
+                          final level = await _pickDifficulty(context);
+                          if (level == null) return;
                           try {
                             final id = await ref
                                 .read(apiClientProvider)
-                                .startPractice(g.token);
+                                .startPractice(g.token, difficulty: level);
                             ref.read(currentRoomProvider.notifier).state = id;
                           } catch (e) {
                             if (!context.mounted) return;
@@ -188,6 +190,29 @@ class LobbyScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Prompts for a practice bot difficulty. Returns the level id, or null if
+/// dismissed.
+Future<String?> _pickDifficulty(BuildContext context) {
+  return showDialog<String>(
+    context: context,
+    builder: (c) => SimpleDialog(
+      backgroundColor: const Color(0xFF0F2E22),
+      title: const Text('ระดับบอท', style: TextStyle(color: Colors.white)),
+      children: [
+        for (final (id, label) in const [
+          ('easy', '🟢 ง่าย'),
+          ('normal', '🟡 ปานกลาง'),
+          ('hard', '🔴 ยาก'),
+        ])
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(c, id),
+            child: Text(label, style: const TextStyle(color: Colors.white)),
+          ),
+      ],
+    ),
+  );
 }
 
 /// Small reusable pill used for the lobby action row (practice / create

@@ -34,11 +34,14 @@ class _CustomRoomSheetState extends ConsumerState<CustomRoomSheet> {
   int _target = 100;
   int _bet = 100;
   int _turnSec = 60;
+  int _minMeld = 3;
+  String _botLevel = 'normal';
   bool _busy = false;
 
   static const _targetOptions = [50, 100, 200, 500];
   static const _turnOptions = [30, 60, 90];
   static const _betOptions = [0, 50, 100, 500, 1000];
+  static const _meldOptions = [3, 4];
 
   @override
   void dispose() {
@@ -62,6 +65,8 @@ class _CustomRoomSheetState extends ConsumerState<CustomRoomSheet> {
             bet: _bet,
             turnTimerSec: _turnSec,
             password: _password.text,
+            minMeldLen: _minMeld,
+            botLevel: _botLevel,
           );
       ref.read(currentRoomProvider.notifier).state = r.id;
       if (!mounted) return;
@@ -171,6 +176,33 @@ class _CustomRoomSheetState extends ConsumerState<CustomRoomSheet> {
                   selected: _bet,
                   labelFor: (v) => v == 0 ? 'ไม่เดิมพัน' : '$v',
                   onPick: (v) => setState(() => _bet = v),
+                ),
+              ),
+              _labelled(
+                'ขนาดชุดขั้นต่ำ (variant)',
+                _chipRow(
+                  values: _meldOptions,
+                  selected: _minMeld,
+                  labelFor: (v) => '$v ใบ',
+                  onPick: (v) => setState(() => _minMeld = v),
+                ),
+              ),
+              _labelled(
+                'ระดับบอท',
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final (id, label) in const [
+                      ('easy', 'ง่าย'),
+                      ('normal', 'ปานกลาง'),
+                      ('hard', 'ยาก'),
+                    ])
+                      ChoiceChip(
+                        label: Text(label),
+                        selected: _botLevel == id,
+                        onSelected: (_) => setState(() => _botLevel = id),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),

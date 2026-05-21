@@ -88,16 +88,22 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 
 ## 7. Long-shot / strategic
 
-- Mobile-native shell (TestFlight / Play Store internal) — Flutter
-  project already configured for mobile; store-review unlocks real-world
-  traffic.
-- Variant rules engine — Thai Dummy has many house variants (Hong Kong,
-  4-deck). `RuleSet` is centralised; add room-level overrides.
-- AI difficulty levels — current bots are basic; ladder-style
+- ⏳ Mobile-native shell (TestFlight / Play Store internal) — Flutter
+  project already configured for mobile (android/ios targets present);
+  store-review unlocks real-world traffic. **Remaining = ops** (signing,
+  store listing, review) — no app code blocking it.
+- ✅ Variant rules engine — Thai Dummy has many house variants (Hong Kong,
+  4-deck). `RuleSet` is centralised; add room-level overrides. (Custom
+  rooms now override min-meld-len (3/4) on top of target score + turn
+  timer; more `RuleSet` knobs slot in the same way.)
+- ✅ AI difficulty levels — current bots are basic; ladder-style
   ง่าย / ปานกลาง / ยาก for practice. Auto-knock solver can seed harder
-  bots.
-- Cross-platform profile sync — Sign-in with Google / Apple + recover
-  wallet from any device. Today it's guest-only.
+  bots. (BotLevel easy/normal/hard: normal+ play through SuggestMove,
+  hard auto-knocks; practice difficulty picker + custom-room bot level.)
+- ⏳ Cross-platform profile sync — Sign-in with Google / Apple + recover
+  wallet from any device. Today it's guest-only. (SocialAuth abstraction +
+  Google/Apple stubs shipped; flip `available` + add SDK + server token
+  exchange to go live.)
 
 ---
 

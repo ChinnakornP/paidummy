@@ -63,6 +63,8 @@ func (a *RESTAdapter) Create(c *gin.Context) {
 		TargetScore  int    `json:"target_score"`
 		Bet          int    `json:"bet"`
 		TurnTimerSec int    `json:"turn_timer_sec"`
+		MinMeldLen   int    `json:"min_meld_len"` // variant: 3 (default) or 4
+		BotLevel     string `json:"bot_level"`
 	}
 	_ = c.ShouldBindJSON(&req)
 	if req.Name == "" {
@@ -85,6 +87,7 @@ func (a *RESTAdapter) Create(c *gin.Context) {
 		Name: req.Name, Password: req.Password,
 		MaxPlayers: req.MaxPlayers, TargetScore: req.TargetScore,
 		Bet: req.Bet, TurnTimerSec: req.TurnTimerSec,
+		MinMeldLen: req.MinMeldLen, BotLevel: req.BotLevel,
 	})
 	_ = r.JoinWith(g.ID.String(), g.Name, req.Password)
 	c.JSON(http.StatusOK, gin.H{
@@ -465,7 +468,9 @@ func (a *RESTAdapter) Practice(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
 		return
 	}
-	r, err := a.hub.CreatePractice(c.Request.Context(), g.ID.String(), g.Name)
+	// Optional ?difficulty=easy|normal|hard (default normal) tunes the bots.
+	difficulty := c.Query("difficulty")
+	r, err := a.hub.CreatePractice(c.Request.Context(), g.ID.String(), g.Name, difficulty)
 	if err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return

@@ -46,6 +46,8 @@ class ApiClient {
     int bet = 0,
     int turnTimerSec = 0,
     String password = '',
+    int minMeldLen = 0,
+    String botLevel = '',
   }) async {
     final r = await _c.post(
       _u('/api/v1/rooms'),
@@ -60,6 +62,8 @@ class ApiClient {
         'bet': bet,
         'turn_timer_sec': turnTimerSec,
         'password': password,
+        'min_meld_len': minMeldLen,
+        'bot_level': botLevel,
       }),
     );
     final j = jsonDecode(r.body) as Map<String, dynamic>;
@@ -476,10 +480,11 @@ class ApiClient {
   }
 
   /// Spins up a solo training room (host + 3 bots) that doesn't settle
-  /// coins. Returns the new room id.
-  Future<String> startPractice(String token) async {
+  /// coins. [difficulty] is 'easy' | 'normal' | 'hard' (bot skill). Returns
+  /// the new room id.
+  Future<String> startPractice(String token, {String difficulty = 'normal'}) async {
     final r = await _c.post(
-      _u('/api/v1/practice'),
+      _u('/api/v1/practice?difficulty=$difficulty'),
       headers: {'Authorization': 'Bearer $token'},
     );
     final j = jsonDecode(r.body) as Map<String, dynamic>;

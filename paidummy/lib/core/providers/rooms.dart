@@ -26,3 +26,7 @@ final tiersProvider = FutureProvider.autoDispose<List<TierInfo>>((ref) async {
 
 /// The room the player is currently in (null = in lobby).
 final currentRoomProvider = StateProvider<String?>((ref) => null);
+
+/// True when the current room was entered as a view-only spectator. The
+/// game screen connects with spectate=1 and hides all action controls.
+final spectatingProvider = StateProvider<bool>((ref) => false);

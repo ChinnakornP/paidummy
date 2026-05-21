@@ -85,6 +85,11 @@ type Room struct {
 	turnEnd   time.Time
 	turnTimer *time.Timer
 
+	// Spectators are view-only connections (not seated). They receive every
+	// broadcast as a viewFor(-1) projection (empty hand, your_seat:-1) and
+	// can't send game actions.
+	spectators []Sender
+
 	hub *Hub
 }
 
@@ -356,6 +361,37 @@ func (r *Room) JoinWith(guestID, name, password string) error {
 	}
 	r.seats = append(r.seats, &seat{GuestID: guestID, Name: name})
 	return nil
+}
+
+// AttachSpectator binds a view-only connection. Always succeeds (no seat
+// limit) and immediately pushes the current public state.
+func (r *Room) AttachSpectator(c Sender) {
+	r.mu.Lock()
+	// De-dup by guest id so a reconnecting spectator doesn't pile up.
+	gid := c.GuestID()
+	filtered := r.spectators[:0]
+	for _, s := range r.spectators {
+		if s.GuestID() != gid {
+			filtered = append(filtered, s)
+		}
+	}
+	r.spectators = append(filtered, c)
+	view := r.viewFor(-1)
+	r.mu.Unlock()
+	c.Send(mustMsg("room_state", view))
+}
+
+// DetachSpectator removes a spectator connection by guest id.
+func (r *Room) DetachSpectator(guestID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := r.spectators[:0]
+	for _, s := range r.spectators {
+		if s.GuestID() != guestID {
+			out = append(out, s)
+		}
+	}
+	r.spectators = out
 }
 
 func (r *Room) seatIndex(guestID string) int {
@@ -1053,12 +1089,13 @@ func (r *Room) snapshot(ctx context.Context) {
 
 func (r *Room) broadcast(typ string, data any) {
 	r.mu.Lock()
-	clients := make([]Sender, 0, len(r.seats))
+	clients := make([]Sender, 0, len(r.seats)+len(r.spectators))
 	for _, s := range r.seats {
 		if s.client != nil {
 			clients = append(clients, s.client)
 		}
 	}
+	clients = append(clients, r.spectators...)
 	r.mu.Unlock()
 	msg := mustMsg(typ, data)
 	for _, c := range clients {
@@ -1074,6 +1111,13 @@ func (r *Room) broadcastState() {
 			continue
 		}
 		s.client.Send(mustMsg("room_state", r.viewFor(i)))
+	}
+	// Spectators all share the same hand-less projection.
+	if len(r.spectators) > 0 {
+		specView := mustMsg("room_state", r.viewFor(-1))
+		for _, s := range r.spectators {
+			s.Send(specView)
+		}
 	}
 }
 

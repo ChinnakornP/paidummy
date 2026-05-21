@@ -70,10 +70,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       final g = ref.read(sessionProvider);
       if (g != null && !_connected) {
         _connected = true;
+        final spectating = ref.read(spectatingProvider);
         ref
             .read(gameControllerProvider.notifier)
-            .connect(g.token, widget.roomId);
-        ref.read(gameControllerProvider.notifier).ready();
+            .connect(g.token, widget.roomId, spectate: spectating);
+        // Spectators never auto-ready; they just watch.
+        if (!spectating) {
+          ref.read(gameControllerProvider.notifier).ready();
+        }
       }
     });
   }
@@ -90,6 +94,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Widget build(BuildContext context) {
     final view = ref.watch(gameControllerProvider);
     final ctrl = ref.read(gameControllerProvider.notifier);
+    final spectating = ref.watch(spectatingProvider);
     _game.setView(view);
 
     // Reconcile the local hand-order list whenever the server's authoritative
@@ -237,6 +242,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 onTap: () {
                   ctrl.leave();
                   ref.read(currentRoomProvider.notifier).state = null;
+                  ref.read(spectatingProvider.notifier).state = false;
                 },
               ),
             ),
@@ -247,7 +253,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
             // Self-elect bot takeover toggle. Sits in the upper-left next to
             // the leave chevron so it's easy to flip when stepping away.
-            if (selfPlayer != null && view.started)
+            if (!spectating && selfPlayer != null && view.started)
               Positioned(
                 left: 56,
                 top: 12,
@@ -288,7 +294,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               ),
 
             // Add-bot button (only meaningful before the round starts).
-            if (!view.started)
+            if (!spectating && !view.started)
               Align(
                 alignment: const Alignment(0, -0.92),
                 child: PillButton(
@@ -368,10 +374,88 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 ),
               ),
 
-            // Bottom: fanned hand + action bar.
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: HandAndControls(view: view, ctrl: ctrl),
+            // Bottom: fanned hand + action bar — players only. Spectators
+            // get a "watching" banner instead.
+            if (!spectating)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: HandAndControls(view: view, ctrl: ctrl),
+              )
+            else
+              const Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: _SpectatorBanner(),
+                ),
+              ),
+
+            // Reconnecting overlay — dims the table and shows a spinner while
+            // the WS client retries. State resyncs automatically when the
+            // server re-sends room_state on reattach.
+            if (view.reconnecting)
+              const Positioned.fill(child: _ReconnectingOverlay()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SpectatorBanner extends StatelessWidget {
+  const _SpectatorBanner();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('👁 ', style: TextStyle(fontSize: 16)),
+          Text(
+            'กำลังดูเกม (ผู้ชม)',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReconnectingOverlay extends StatelessWidget {
+  const _ReconnectingOverlay();
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.6),
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(Color(0xFFFFD24A)),
+              ),
+            ),
+            SizedBox(height: 14),
+            Text(
+              'กำลังเชื่อมต่อใหม่…',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),

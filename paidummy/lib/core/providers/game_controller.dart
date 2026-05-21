@@ -27,9 +27,9 @@ class GameController extends StateNotifier<GameView> {
   }
   final WsClient _ws;
 
-  void connect(String token, String roomId) {
+  void connect(String token, String roomId, {bool spectate = false}) {
     state = const GameView();
-    _ws.connect(token, roomId);
+    _ws.connect(token, roomId, spectate: spectate);
   }
 
   void _onMessage(Map<String, dynamic> m) {
@@ -94,6 +94,9 @@ class GameController extends StateNotifier<GameView> {
         } else {
           state = state.copyWith(lastSuggestion: sug);
         }
+        break;
+      case 'socket_reconnecting':
+        state = state.copyWith(connected: false, reconnecting: true);
         break;
       case 'socket_closed':
       case 'socket_error':

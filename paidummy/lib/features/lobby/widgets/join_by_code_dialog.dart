@@ -25,6 +25,7 @@ class _JoinByCodeDialogState extends ConsumerState<JoinByCodeDialog> {
   final _roomId = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
+  bool _spectate = false;
 
   @override
   void dispose() {
@@ -40,11 +41,20 @@ class _JoinByCodeDialogState extends ConsumerState<JoinByCodeDialog> {
     if (id.isEmpty) return;
     setState(() => _busy = true);
     try {
+      // Spectators attach over the WS only; no REST seat join.
+      if (_spectate) {
+        ref.read(spectatingProvider.notifier).state = true;
+        ref.read(currentRoomProvider.notifier).state = id;
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        return;
+      }
       await ref.read(apiClientProvider).joinRoom(
             g.token,
             id,
             password: _password.text,
           );
+      ref.read(spectatingProvider.notifier).state = false;
       ref.read(currentRoomProvider.notifier).state = id;
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -85,6 +95,17 @@ class _JoinByCodeDialogState extends ConsumerState<JoinByCodeDialog> {
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
                 labelText: 'รหัสผ่าน (ถ้ามี)',
+              ),
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              value: _spectate,
+              onChanged: (v) => setState(() => _spectate = v),
+              title: const Text(
+                '👁 ดูอย่างเดียว (ไม่ลงเล่น)',
+                style: TextStyle(color: Colors.white, fontSize: 13),
               ),
             ),
           ],

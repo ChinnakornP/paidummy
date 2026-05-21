@@ -32,7 +32,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 1.1 | In-room text chat + emoji react | Decorative chat button already in `_ChatButton`; server routes per-room broadcasts — needs only a `"chat"` WS message + a panel. | S |
 | 1.2 | Friend list + private invite | Quickplay finds strangers; friends finish more rounds together. New `friends` / `invites` DB tables + REST + lobby sheet. | M |
 | ✅ 1.3 | Private / password rooms | Hosting a session for a specific group. Add `password` to room create; gate Join. | S |
-| 1.4 | Spectator mode | View-only seat. Reuse `room_state` but with `your_hand: []`; gate action handlers. | M |
+| ✅ 1.4 | Spectator mode | View-only seat. Reuse `room_state` but with `your_hand: []`; gate action handlers. | M |
 | ✅ 1.5 | Player profile screen | Tap any seat → stats, history, rank. Pure read-side; reuses `MeHandler` + `MatchHistory`. | S |
 
 ## 2. Game flow polish
@@ -49,7 +49,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
-| 3.1 | Reconnect mid-round | Network drops happen. Server already persists state in Redis; needs a client "reconnecting…" overlay + auto-resume. | M |
+| ✅ 3.1 | Reconnect mid-round | Network drops happen. Server already persists state in Redis; needs a client "reconnecting…" overlay + auto-resume. | M |
 | ✅ 3.2 | Disconnect protection (bot takeover) | Today the shot clock auto-discards once but the seat keeps stalling. A "play out as bot" toggle smooths real games. | S |
 | 3.3 | Replay / move log viewer | Stored event stream per match (already partly in `db.SaveRound`). Add a scrubbable viewer dialog. | L |
 | 3.4 | Report player + admin tools | One report button per seat + a small admin endpoint to mute/ban. | M |

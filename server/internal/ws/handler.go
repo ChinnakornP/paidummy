@@ -48,11 +48,12 @@ type envelope struct {
 
 // conn is one player's live socket; it satisfies room.Sender.
 type conn struct {
-	guestID string
-	name    string
-	ws      *websocket.Conn
-	send    chan []byte
-	room    *room.Room
+	guestID   string
+	name      string
+	ws        *websocket.Conn
+	send      chan []byte
+	room      *room.Room
+	spectator bool
 }
 
 func (c *conn) GuestID() string { return c.guestID }
@@ -78,22 +79,31 @@ func (h *Handler) Upgrade(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "room not found"})
 		return
 	}
+	spectate := c.Query("spectate") == "1" || c.Query("spectate") == "true"
 	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
 	cn := &conn{
 		guestID: g.ID.String(), name: g.Name, ws: wsConn,
-		send: make(chan []byte, sendBuffer), room: r,
+		send: make(chan []byte, sendBuffer), room: r, spectator: spectate,
 	}
 	go cn.writePump()
-	r.Attach(cn)
+	if spectate {
+		r.AttachSpectator(cn)
+	} else {
+		r.Attach(cn)
+	}
 	cn.readPump()
 }
 
 func (c *conn) readPump() {
 	defer func() {
-		c.room.Detach(c.guestID)
+		if c.spectator {
+			c.room.DetachSpectator(c.guestID)
+		} else {
+			c.room.Detach(c.guestID)
+		}
 		_ = c.ws.Close()
 		close(c.send)
 	}()
@@ -110,6 +120,11 @@ func (c *conn) readPump() {
 		var env envelope
 		if json.Unmarshal(raw, &env) != nil || env.Type == "" {
 			c.Send(serverErr("malformed message"))
+			continue
+		}
+		// Spectators are view-only: allow chat, ignore everything else so
+		// they can never mutate game state.
+		if c.spectator && env.Type != "chat" {
 			continue
 		}
 		c.room.HandleMessage(context.Background(), c.guestID, env.Type, env.Data)

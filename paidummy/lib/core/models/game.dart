@@ -118,6 +118,7 @@ class MoveSuggestion {
 class GameView {
   const GameView({
     this.connected = false,
+    this.reconnecting = false,
     this.started = false,
     this.bet = 0,
     this.countdownEndMs = 0,
@@ -147,6 +148,9 @@ class GameView {
   });
 
   final bool connected;
+  /// True while the WS client is retrying after an unexpected drop. Drives
+  /// the "reconnecting…" overlay.
+  final bool reconnecting;
   final bool started;
   final int bet;
   final int countdownEndMs; // unix ms; 0 = no pre-start countdown
@@ -195,6 +199,7 @@ class GameView {
 
   GameView copyWith({
     bool? connected,
+    bool? reconnecting,
     bool? started,
     int? bet,
     int? countdownEndMs,
@@ -229,6 +234,7 @@ class GameView {
   }) {
     return GameView(
       connected: connected ?? this.connected,
+      reconnecting: reconnecting ?? this.reconnecting,
       started: started ?? this.started,
       bet: bet ?? this.bet,
       countdownEndMs: countdownEndMs ?? this.countdownEndMs,
@@ -269,6 +275,7 @@ class GameView {
   }) {
     return prev.copyWith(
       connected: true,
+      reconnecting: false,
       started: j['started'] as bool? ?? false,
       bet: (j['bet'] as num?)?.toInt() ?? prev.bet,
       countdownEndMs: (j['countdown_end_ms'] as num?)?.toInt() ?? 0,

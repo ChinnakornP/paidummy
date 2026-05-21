@@ -73,7 +73,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 5.2 | Daily missions ("เล่น 3 ตา", "น็อคซ้ำสี") | Drives session length. Server-side mission set + progress writes on each match. | M |
 | ✅ 5.3 | Leaderboards (daily / weekly / all-time) | Read-only ranking by coins won / matches won. SQL view + a lobby sheet. | S |
 | 5.4 | Tournaments / scheduled events | One-shot rooms with prize pool ("ห้อง VIP ทุกวันศุกร์ 20:00"). | L |
-| 5.5 | Watch-ad-for-coins | Optional sink — pair with a real ad SDK later, mock now. | M |
+| ✅ 5.5 | Watch-ad-for-coins | Optional sink — pair with a real ad SDK later, mock now. | M |
 | ✅ 5.6 | Referral bonus | `?ref=<id>` deep link → both parties get coins on the friend's first match. | S |
 
 ## 6. Platform / operational
@@ -83,7 +83,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | 6.1 | Push notifications | "ตาคุณแล้ว!" when the room is waiting on you. Needs FCM/APNs + a notification token table. | M |
 | 6.2 | English (and other Thai dialect) localisation | Broader audience. `intl` package, `arb` files. Strings already centralised in `ui.dart`. | M |
 | 6.3 | Real payment integration (replace mock) | Shop is mock today. PromptPay / TrueMoney / Apple-Google IAP. `PurchasePackage` already exists — wire a provider behind it. | L |
-| 6.4 | Crash reporting + analytics | Sentry/Crashlytics + a small event pipeline (action counts, funnel drop-offs). | S |
+| ✅ 6.4 | Crash reporting + analytics | Sentry/Crashlytics + a small event pipeline (action counts, funnel drop-offs). (AnalyticsService interface + debug-log mock; sign-in/quickplay events wired; swap impl for a real SDK.) | S |
 | ✅ 6.5 | Admin dashboard | Read-only web view of rooms, player counts, recent rounds, support tickets. | M |
 
 ## 7. Long-shot / strategic

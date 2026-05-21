@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/analytics/analytics_service.dart';
 import '../../core/network/index.dart';
 import '../../core/providers/index.dart';
 import '../../shared/widgets/index.dart';
@@ -22,6 +23,7 @@ class LobbyScreen extends ConsumerWidget {
     final g = ref.read(sessionProvider)!;
     try {
       final roomID = await ref.read(apiClientProvider).quickplay(g.token, bet);
+      ref.read(analyticsProvider).event('quickplay', {'bet': bet});
       ref.read(currentRoomProvider.notifier).state = roomID;
     } on QuickplayException catch (e) {
       if (!context.mounted) return;

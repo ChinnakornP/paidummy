@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/analytics/analytics_service.dart';
 import '../../core/providers/index.dart';
 import '../../shared/widgets/index.dart';
 import 'widgets/index.dart';
@@ -34,6 +35,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       await ref
           .read(sessionProvider.notifier)
           .createGuest(_name.text, ref: _ref.text);
+      ref.read(analyticsProvider).event('guest_sign_in', {
+        'referred': _ref.text.trim().isNotEmpty,
+      });
     } finally {
       if (mounted) setState(() => _busy = false);
     }

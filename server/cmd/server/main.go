@@ -59,6 +59,7 @@ func main() {
 		RoomHistory: room.RoomHistoryHandler(database),
 		DailyStatus: room.DailyStatusHandler(database),
 		DailyClaim:  room.DailyClaimHandler(database),
+		DeviceToken: room.DeviceTokenHandler(database),
 		Leaderboard:  room.LeaderboardHandler(database),
 		Avatar:       room.AvatarHandler(database),
 		Missions:     room.MissionsHandler(database),

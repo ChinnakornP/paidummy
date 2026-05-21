@@ -60,6 +60,7 @@ type Server struct {
 
 	AdStatus      gin.HandlerFunc // GET  /api/v1/me/ad
 	AdClaim       gin.HandlerFunc // POST /api/v1/me/ad/claim
+	DeviceToken   gin.HandlerFunc // POST /api/v1/me/device-token
 	Report        gin.HandlerFunc // POST /api/v1/reports
 	AdminBan      gin.HandlerFunc // POST /api/v1/admin/ban
 	AdminReports  gin.HandlerFunc // GET  /api/v1/admin/reports
@@ -150,6 +151,9 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.AdClaim != nil {
 			auth.POST("/me/ad/claim", s.AdClaim)
+		}
+		if s.DeviceToken != nil {
+			auth.POST("/me/device-token", s.DeviceToken)
 		}
 	}
 

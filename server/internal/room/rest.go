@@ -254,6 +254,32 @@ func PackagesHandler() gin.HandlerFunc {
 	}
 }
 
+// DeviceTokenHandler POST /api/v1/me/device-token {"token","platform"} —
+// registers a push token for the authenticated guest.
+func DeviceTokenHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			Token    string `json:"token"`
+			Platform string `json:"platform"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		if req.Token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing token"})
+			return
+		}
+		if err := database.RegisterDeviceToken(c.Request.Context(), g.ID, req.Token, req.Platform); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "register failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	}
+}
+
 // PurchaseHandler POST /api/v1/shop/purchase {"package_id": ...} — mock
 // payment that always succeeds, credits the wallet atomically, returns the
 // new balance and the coins added. Real payment will wrap this with a

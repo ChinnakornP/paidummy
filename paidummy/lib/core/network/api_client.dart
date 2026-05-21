@@ -274,6 +274,23 @@ class ApiClient {
     }
   }
 
+  /// Registers a push-notification device token. Skeleton: call this once a
+  /// real FCM/APNs token is available (firebase_messaging not wired yet).
+  Future<void> registerDeviceToken(
+    String token,
+    String deviceToken, {
+    String platform = 'unknown',
+  }) async {
+    await _c.post(
+      _u('/api/v1/me/device-token'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'token': deviceToken, 'platform': platform}),
+    );
+  }
+
   /// Rewarded-ad status — whether a (mock) ad reward is claimable now and
   /// the next claim time.
   Future<({bool available, int reward, int? nextClaimMs})> adStatus(

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/analytics/analytics_service.dart';
 import '../../core/providers/index.dart';
 import '../../shared/widgets/index.dart';
+import '../tutorial/tutorial_sheet.dart';
 import 'widgets/index.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -103,6 +104,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: Colors.white.withValues(alpha: 0.55),
                           fontSize: 12,
                           letterSpacing: 0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextButton.icon(
+                        onPressed: () => showTutorial(context),
+                        icon: const Icon(Icons.help_outline,
+                            color: Color(0xFFFFE7A6), size: 18),
+                        label: const Text(
+                          'วิธีเล่น',
+                          style: TextStyle(color: Color(0xFFFFE7A6)),
                         ),
                       ),
                     ],

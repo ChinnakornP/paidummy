@@ -14,6 +14,7 @@ import '../../core/providers/index.dart';
 import '../../shared/widgets/index.dart';
 import '../history/history_sheet.dart';
 import '../shop/shop_sheet.dart';
+import '../tutorial/tutorial_sheet.dart';
 import 'widgets/index.dart';
 
 class LobbyScreen extends ConsumerWidget {
@@ -51,6 +52,16 @@ class LobbyScreen extends ConsumerWidget {
     final tiers = ref.watch(tiersProvider);
     final liveGuest = me.value;
     final coins = liveGuest?.coins ?? g?.coins ?? 0;
+
+    // First-run onboarding: open the tutorial once per session.
+    if (!ref.watch(tutorialSeenProvider)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        if (ref.read(tutorialSeenProvider)) return;
+        ref.read(tutorialSeenProvider.notifier).state = true;
+        showTutorial(context);
+      });
+    }
     final rank = liveGuest?.rank;
 
     return Scaffold(

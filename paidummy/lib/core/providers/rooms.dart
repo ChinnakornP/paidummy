@@ -30,3 +30,7 @@ final currentRoomProvider = StateProvider<String?>((ref) => null);
 /// True when the current room was entered as a view-only spectator. The
 /// game screen connects with spectate=1 and hides all action controls.
 final spectatingProvider = StateProvider<bool>((ref) => false);
+
+/// Whether the first-run tutorial has been shown this session. The lobby
+/// auto-opens the tutorial once when this is false, then flips it.
+final tutorialSeenProvider = StateProvider<bool>((ref) => false);

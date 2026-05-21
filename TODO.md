@@ -60,7 +60,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
 | ✅ 4.1 | Sound effects + ambient music | Card flip, deal, ทิ้ง, น็อค, win/lose stings. Asset pack + a Riverpod sound service. Single biggest "this feels like a game" upgrade. (SoundService + empty placeholder assets shipped; drop real .mp3s in to enable.) | S |
-| 4.2 | Card animations (deal, draw, discard, meld lay-down) | Flame already drives the table; animate cards between zones with `Tween`s. | M |
+| ✅ 4.2 | Card animations (deal, draw, discard, meld lay-down) | Flame already drives the table; animate cards between zones with `Tween`s. (Hand fan reorders via AnimatedPositioned; discard cards play a keyed scale+fade entrance, reduced-motion aware. Zone-to-zone fly animations can layer on later.) | M |
 | ✅ 4.3 | Haptics on action | `HapticFeedback.lightImpact()` on draw/meld/discard. Trivial. | XS |
 | ✅ 4.4 | Card / table themes | Cosmetic-shop unlocks. Server stores `selected_skin` per guest; client renders accordingly. (theme column + 5 felt palettes + PATCH /me/theme; FeltBackground recolours all screens via feltThemeProvider; picker in profile dialog.) | M |
 | ✅ 4.5 | Avatar picker (preset images) | 12 preset avatars makes the lobby read social. Today it's just a first-letter circle. | S |

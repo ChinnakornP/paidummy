@@ -99,20 +99,47 @@ class _DiscardRow extends StatelessWidget {
         children: [
           for (var i = 0; i < n; i++)
             Positioned(
+              // Key by card so a newly discarded card gets a fresh element
+              // and plays its entrance tween, while existing cards don't.
+              key: ValueKey(pile[i]),
               left: i * step,
               top: selected.contains(pile[i]) ? -6 : 4,
               child: GestureDetector(
                 onTap: () => onTap(pile[i]),
-                child: _PileFaceCard(
-                  label: pile[i],
-                  highlight: selected.contains(pile[i]),
-                  isTarget: pile[i] == target,
-                  isHead: pile[i] == headCard,
+                child: _CardEntrance(
+                  child: _PileFaceCard(
+                    label: pile[i],
+                    highlight: selected.contains(pile[i]),
+                    isTarget: pile[i] == target,
+                    isHead: pile[i] == headCard,
+                  ),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+/// One-shot scale+fade entrance for a freshly-dealt/discarded card. Honors
+/// the platform "reduce motion" setting by collapsing the duration to zero.
+class _CardEntrance extends StatelessWidget {
+  const _CardEntrance({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: reduce ? Duration.zero : const Duration(milliseconds: 220),
+      curve: Curves.easeOutBack,
+      builder: (_, t, c) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.7 + 0.3 * t, child: c),
+      ),
+      child: child,
     );
   }
 }

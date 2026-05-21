@@ -663,6 +663,12 @@ func (a *RESTAdapter) AdminDashboard(c *gin.Context) {
 			htmlEscape(rep.Target) + "</td><td>" + htmlEscape(rep.Reason) +
 			"</td></tr>")
 	}
+	flags, _ := a.db.CollusionFlags(c.Request.Context(), 50)
+	var fb strings.Builder
+	for _, f := range flags {
+		fb.WriteString("<tr><td>" + htmlEscape(f.Winner) + "</td><td>" +
+			htmlEscape(f.Loser) + "</td><td>" + itoa(f.Matches) + "</td></tr>")
+	}
 	html := "<!doctype html><meta charset=utf-8><title>Pai Dummy admin</title>" +
 		"<style>body{font-family:system-ui;margin:24px;background:#0d1b2a;color:#eee}" +
 		"table{border-collapse:collapse;margin:12px 0;width:100%}" +
@@ -674,7 +680,9 @@ func (a *RESTAdapter) AdminDashboard(c *gin.Context) {
 		"<h2>Rooms</h2><table><tr><th>Name</th><th>Players</th><th>Bet</th><th>State</th></tr>" +
 		rb.String() + "</table>" +
 		"<h2>Recent reports</h2><table><tr><th>When</th><th>By</th><th>Target</th><th>Reason</th></tr>" +
-		pb.String() + "</table>"
+		pb.String() + "</table>" +
+		"<h2>Collusion flags</h2><table><tr><th>Winner</th><th>Loser</th><th>Matches</th></tr>" +
+		fb.String() + "</table>"
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 

@@ -36,6 +36,21 @@ func main() {
 		log.Fatalf("migrate: %v", err)
 	}
 
+	// Anti-collusion: rescan the settlement graph every 30 min in the
+	// background. Best-effort; failures just log.
+	go func() {
+		t := time.NewTicker(30 * time.Minute)
+		defer t.Stop()
+		for {
+			if n, err := database.ScanCollusion(context.Background()); err != nil {
+				log.Printf("collusion scan: %v", err)
+			} else if n > 0 {
+				log.Printf("collusion scan: flagged %d pair(s)", n)
+			}
+			<-t.C
+		}
+	}()
+
 	rds, err := store.Connect(ctx, cfg.RedisAddr)
 	if err != nil {
 		log.Fatalf("redis: %v", err)

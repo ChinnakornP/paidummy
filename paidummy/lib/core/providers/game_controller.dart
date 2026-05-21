@@ -82,6 +82,19 @@ class GameController extends StateNotifier<GameView> {
           chatUnread: state.chatUnread + 1,
         );
         break;
+      case 'suggestion':
+        final sug = MoveSuggestion.fromJson(data);
+        // Auto-stage cards for meld/discard so the player just taps the
+        // action; layoff/knock are left for the player to confirm.
+        if (sug.kind == 'meld' || sug.kind == 'discard') {
+          state = state.copyWith(
+            selected: sug.cards.toSet(),
+            lastSuggestion: sug,
+          );
+        } else {
+          state = state.copyWith(lastSuggestion: sug);
+        }
+        break;
       case 'socket_closed':
       case 'socket_error':
         state = state.copyWith(connected: false);
@@ -145,6 +158,15 @@ class GameController extends StateNotifier<GameView> {
   /// reconnect from a disconnect-elected takeover).
   void setBotTakeover(bool enabled) =>
       _ws.send('bot_takeover', {'enabled': enabled});
+
+  /// Requests a "ช่วยคิด" suggestion from the server for the current turn.
+  void requestSuggestion() => _ws.send('suggest');
+
+  /// Clears the consumed suggestion so the snackbar only fires once.
+  void clearSuggestion() {
+    if (state.lastSuggestion == null) return;
+    state = state.copyWith(clearSuggestion: true);
+  }
 
   /// Sends a chat line to all seated players. Empty lines are dropped
    /// server-side; the client just trims here for snappier feedback.

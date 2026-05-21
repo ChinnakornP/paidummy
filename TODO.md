@@ -43,7 +43,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 2.2 | Room settings (target score / turn timer / dark-knock toggle) | Currently fixed in `DefaultRuleSet`. Surface a few knobs on room create. | S |
 | 2.3 | Interactive tutorial / onboarding | First-time guest goes through a guided 3-turn demo against a bot. | M |
 | ✅ 2.4 | Practice mode vs bots (no stake) | Solo training; reuses bot infra, just a room kind that doesn't settle coins. | S |
-| 2.5 | "ช่วยคิด" / Suggest-a-move | When stuck, surface one suggested meld / layoff / discard. Extend the auto-knock solver. | M |
+| ✅ 2.5 | "ช่วยคิด" / Suggest-a-move | When stuck, surface one suggested meld / layoff / discard. Extend the auto-knock solver. | M |
 
 ## 3. Robustness & fairness
 

@@ -88,6 +88,31 @@ class MeldView {
   );
 }
 
+/// A "ช่วยคิด" hint from the server: one recommended next move.
+class MoveSuggestion {
+  const MoveSuggestion({
+    required this.kind,
+    required this.cards,
+    required this.meldId,
+    required this.reason,
+  });
+  final String kind; // draw | knock | meld | layoff | discard
+  final List<String> cards;
+  final String? meldId;
+  final String reason;
+
+  factory MoveSuggestion.fromJson(Map<String, dynamic> j) => MoveSuggestion(
+    kind: j['kind'] as String? ?? '',
+    cards: ((j['cards'] as List?) ?? const [])
+        .map((e) => e as String)
+        .toList(),
+    meldId: (j['meld_id'] as String?)?.isEmpty ?? true
+        ? null
+        : j['meld_id'] as String?,
+    reason: j['reason'] as String? ?? '',
+  );
+}
+
 /// GameView is the client's single source of truth, reduced from the server's
 /// per-player `room_state` plus transient turn/error/result signals.
 class GameView {
@@ -118,6 +143,7 @@ class GameView {
     this.selected = const {},
     this.chatMessages = const [],
     this.chatUnread = 0,
+    this.lastSuggestion,
   });
 
   final bool connected;
@@ -162,6 +188,9 @@ class GameView {
   /// sheet. Drives the red dot on the chat button.
   final int chatUnread;
 
+  /// Most recent "ช่วยคิด" suggestion, consumed once by the UI then cleared.
+  final MoveSuggestion? lastSuggestion;
+
   bool get isMyTurn => turn >= 0 && turn == yourSeat;
 
   GameView copyWith({
@@ -195,6 +224,8 @@ class GameView {
     Set<String>? selected,
     List<ChatMessage>? chatMessages,
     int? chatUnread,
+    MoveSuggestion? lastSuggestion,
+    bool clearSuggestion = false,
   }) {
     return GameView(
       connected: connected ?? this.connected,
@@ -227,6 +258,8 @@ class GameView {
       selected: selected ?? this.selected,
       chatMessages: chatMessages ?? this.chatMessages,
       chatUnread: chatUnread ?? this.chatUnread,
+      lastSuggestion:
+          clearSuggestion ? null : (lastSuggestion ?? this.lastSuggestion),
     );
   }
 

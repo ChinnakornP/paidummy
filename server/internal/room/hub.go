@@ -614,6 +614,8 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 		r.handleChat(guestID, data)
 	case "bot_takeover":
 		r.handleBotTakeover(guestID, data)
+	case "suggest":
+		r.handleSuggest(guestID)
 	case "draw_deck", "draw_discard", "meld", "layoff", "knock", "auto_knock", "discard":
 		r.handleGameAction(ctx, guestID, typ, data)
 	default:
@@ -625,6 +627,30 @@ func (r *Room) HandleMessage(ctx context.Context, guestID string, typ string, da
 // the tail rather than rejecting the message so the user isn't punished
 // for a long paste.
 const chatMaxLen = 200
+
+// handleSuggest computes a single recommended move for the requesting
+// player (the "ช่วยคิด" hint) and replies privately. Read-only; available
+// only on the player's own turn.
+func (r *Room) handleSuggest(guestID string) {
+	r.mu.Lock()
+	if r.state == nil {
+		r.mu.Unlock()
+		return
+	}
+	idx := r.seatIndex(guestID)
+	if idx < 0 || idx != r.state.Turn {
+		r.mu.Unlock()
+		return
+	}
+	sug := game.SuggestMove(r.state, idx)
+	r.mu.Unlock()
+	r.sendTo(guestID, "suggestion", map[string]any{
+		"kind":    sug.Kind,
+		"cards":   sug.Cards,
+		"meld_id": sug.MeldID,
+		"reason":  sug.Reason,
+	})
+}
 
 // handleBotTakeover flips the per-seat BotMode flag, which short-circuits
 // the shot clock so the server plays the turn quickly on the player's

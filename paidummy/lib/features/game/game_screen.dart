@@ -98,6 +98,22 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ref.read(handOrderProvider.notifier).reconcile(next);
     });
 
+    ref.listen(
+      gameControllerProvider.select((v) => v.lastSuggestion),
+      (prev, next) {
+        if (next != null && next != prev) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF8A6E2D),
+              duration: const Duration(seconds: 3),
+              content: Text('💡 ${next.reason}'),
+            ),
+          );
+          ctrl.clearSuggestion();
+        }
+      },
+    );
+
     ref.listen(gameControllerProvider, (prev, next) {
       if (next.lastError != null && next.lastError != prev?.lastError) {
         ScaffoldMessenger.of(

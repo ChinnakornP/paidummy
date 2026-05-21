@@ -220,6 +220,14 @@ class HandAndControls extends ConsumerWidget {
               SortButton(
                 onTap: ref.read(handOrderProvider.notifier).cycleSort,
               ),
+              // "ช่วยคิด" hint — only useful on your own turn.
+              if (view.isMyTurn)
+                _HintButton(
+                  onTap: () {
+                    _tapHaptic();
+                    ctrl.requestSuggestion();
+                  },
+                ),
               ..._actions(ref),
             ],
           ),
@@ -235,6 +243,42 @@ class HandAndControls extends ConsumerWidget {
           onMove: ref.read(handOrderProvider.notifier).move,
         ),
       ],
+    );
+  }
+}
+
+/// "💡 ช่วยคิด" hint button — asks the server to suggest the next move.
+class _HintButton extends StatelessWidget {
+  const _HintButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF8A6E2D),
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('💡', style: TextStyle(fontSize: 16)),
+              SizedBox(width: 6),
+              Text(
+                'ช่วยคิด',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

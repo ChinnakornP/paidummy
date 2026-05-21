@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/index.dart';
 import 'daily_bonus_button.dart';
+import 'missions_sheet.dart';
 import 'ref_code_button.dart';
 import 'wallet_pill.dart';
 
@@ -96,6 +97,11 @@ class LobbyTopBar extends StatelessWidget {
           ),
           const SizedBox(width: 2),
           const DailyBonusButton(),
+          LobbyIconButton(
+            emoji: '📋',
+            tooltip: 'ภารกิจ',
+            onTap: () => showMissionsSheet(context),
+          ),
           LobbyIconButton(
             emoji: '📜',
             tooltip: 'ประวัติ',

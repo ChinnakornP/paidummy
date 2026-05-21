@@ -7,6 +7,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/audio/sound_service.dart';
 import '../../core/models/index.dart';
 import '../../core/providers/index.dart';
 import '../../shared/widgets/index.dart';
@@ -144,6 +145,22 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           (prev?.roundResult != next.roundResult ||
               prev?.matchResult != next.matchResult)) {
         final isMatch = next.matchResult != null;
+        if (isMatch) {
+          // Win/lose sting on match end — winner flag is per-row; play win
+          // if the local seat won, else lose.
+          final rows = (rr['rows'] as List?) ?? const [];
+          var iWon = false;
+          for (final row in rows) {
+            final m = row as Map?;
+            if (m != null &&
+                m['seat'] == next.yourSeat &&
+                m['winner'] == true) {
+              iWon = true;
+              break;
+            }
+          }
+          ref.read(soundServiceProvider).play(iWon ? Sfx.win : Sfx.lose);
+        }
         showDialog<void>(
           context: context,
           builder: (c) => AlertDialog(

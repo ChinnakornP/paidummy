@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/audio/sound_service.dart';
 import '../../../core/models/index.dart';
 import '../../../core/providers/index.dart';
 import 'game_buttons.dart';
@@ -32,6 +33,7 @@ class HandAndControls extends ConsumerWidget {
   ///   • no meld targeted → "ลง" — create a new meld from ≥3 hand cards.
   ///   • meld targeted    → "ฝาก" — extend that meld with ≥1 hand card.
   List<Widget> _actions(WidgetRef ref) {
+    final sfx = ref.read(soundServiceProvider);
     if (!view.started) {
       return [
         GameButton(
@@ -40,6 +42,7 @@ class HandAndControls extends ConsumerWidget {
           colors: const [Color(0xFF6DC94A), Color(0xFF3E8A25)],
           onTap: () {
             _tapHaptic();
+            sfx.play(Sfx.button);
             ctrl.ready();
           },
           highlight: true,
@@ -81,6 +84,7 @@ class HandAndControls extends ConsumerWidget {
           colors: const [Color(0xFFF49A3A), Color(0xFFC66A18)],
           onTap: () {
             _actionHaptic();
+            sfx.play(Sfx.draw);
             ctrl.drawDeck();
           },
           highlight: !canDummyLayoff,
@@ -95,6 +99,7 @@ class HandAndControls extends ConsumerWidget {
           onTap: canPickup
               ? () {
                   _actionHaptic();
+                  sfx.play(Sfx.draw);
                   ctrl.drawDiscard(supportingCards, targetCard: target);
                   ref.read(selectedDiscardCardsProvider.notifier).state =
                       const {};
@@ -112,6 +117,7 @@ class HandAndControls extends ConsumerWidget {
           onTap: canDummyLayoff
               ? () {
                   _actionHaptic();
+                  sfx.play(Sfx.layoff);
                   ctrl.drawDiscard(
                     const [],
                     targetCard: target,
@@ -148,6 +154,7 @@ class HandAndControls extends ConsumerWidget {
         onTap: (canNewMeld || canLayoff)
             ? () {
                 _actionHaptic();
+                sfx.play(selectedMeld != null ? Sfx.layoff : Sfx.meld);
                 if (selectedMeld != null) {
                   ctrl.layoffSelected(selectedMeld);
                 } else {
@@ -165,6 +172,7 @@ class HandAndControls extends ConsumerWidget {
         onTap: canDiscard
             ? () {
                 _actionHaptic();
+                sfx.play(Sfx.discard);
                 ctrl.discardSelectedFirst();
               }
             : null,
@@ -177,6 +185,7 @@ class HandAndControls extends ConsumerWidget {
         onTap: canKnock
             ? () {
                 _knockHaptic();
+                sfx.play(Sfx.knock);
                 // Prefer auto-knock when the server says a plan exists; only
                 // fall through to manual knock if the player has narrowed the
                 // hand to 1 card themselves.
@@ -220,6 +229,7 @@ class HandAndControls extends ConsumerWidget {
           selected: view.selected,
           onToggle: (c) {
             _tapHaptic();
+            ref.read(soundServiceProvider).play(Sfx.cardFlip);
             ctrl.toggleSelect(c);
           },
           onMove: ref.read(handOrderProvider.notifier).move,

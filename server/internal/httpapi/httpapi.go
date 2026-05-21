@@ -47,6 +47,9 @@ type Server struct {
 
 	Leaderboard gin.HandlerFunc // GET /api/v1/leaderboard?period=...
 	Avatar      gin.HandlerFunc // PATCH /api/v1/me/avatar
+
+	Missions     gin.HandlerFunc // GET  /api/v1/me/missions
+	MissionClaim gin.HandlerFunc // POST /api/v1/me/missions/:id/claim
 }
 
 const ctxGuestKey = "guest"
@@ -105,6 +108,12 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.Avatar != nil {
 			auth.PATCH("/me/avatar", s.Avatar)
+		}
+		if s.Missions != nil {
+			auth.GET("/me/missions", s.Missions)
+		}
+		if s.MissionClaim != nil {
+			auth.POST("/me/missions/:id/claim", s.MissionClaim)
 		}
 	}
 

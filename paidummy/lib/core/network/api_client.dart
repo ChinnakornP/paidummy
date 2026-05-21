@@ -274,6 +274,37 @@ class ApiClient {
     }
   }
 
+  /// Today's daily missions with the caller's progress.
+  Future<List<MissionStatus>> missions(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/me/missions'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['missions'] as List?) ?? const [])
+        .map((e) => MissionStatus.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Claims a completed mission's reward. Returns reward + new balance.
+  Future<({int reward, int newBalance})> claimMission(
+    String token,
+    String missionId,
+  ) async {
+    final r = await _c.post(
+      _u('/api/v1/me/missions/$missionId/claim'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'claim failed');
+    }
+    return (
+      reward: (j['reward'] as num).toInt(),
+      newBalance: (j['new_balance'] as num).toInt(),
+    );
+  }
+
   /// Spins up a solo training room (host + 3 bots) that doesn't settle
   /// coins. Returns the new room id.
   Future<String> startPractice(String token) async {

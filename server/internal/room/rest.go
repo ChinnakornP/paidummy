@@ -474,6 +474,49 @@ func DailyClaimHandler(database *db.DB) gin.HandlerFunc {
 	}
 }
 
+// MissionsHandler GET /api/v1/me/missions — today's daily missions with
+// the caller's progress + claim state.
+func MissionsHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		ms, err := database.MissionsFor(c.Request.Context(), g.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "missions failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"missions": ms})
+	}
+}
+
+// ClaimMissionHandler POST /api/v1/me/missions/:id/claim — credits the
+// reward for a completed mission. 409 if incomplete or already claimed.
+func ClaimMissionHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		reward, bal, err := database.ClaimMission(c.Request.Context(), g.ID, c.Param("id"))
+		if err != nil {
+			switch {
+			case errors.Is(err, db.ErrUnknownMission):
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			case errors.Is(err, db.ErrMissionIncomplete), errors.Is(err, db.ErrMissionClaimed):
+				c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "claim failed"})
+			}
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"reward": reward, "new_balance": bal})
+	}
+}
+
 // LeaderboardHandler GET /api/v1/leaderboard?period=alltime|weekly|daily
 // — read-only top-N ranking by coin profit. Defaults to alltime, limit 20.
 func LeaderboardHandler(database *db.DB) gin.HandlerFunc {

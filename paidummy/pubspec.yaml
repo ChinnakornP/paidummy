@@ -40,6 +40,7 @@ dependencies:
   flame: ^1.31.0             # card-table rendering
   web_socket_channel: ^3.0.3 # realtime link to the Go server
   http: ^1.5.0              # REST (guest sessions, rooms, history)
+  audioplayers: ^6.6.0
 
 dev_dependencies:
   flutter_test:
@@ -63,10 +64,12 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # Sound-effect placeholders. The .mp3 files in assets/sounds/ are
+  # intentionally empty 0-byte stubs right now — SoundService swallows load
+  # errors so the game runs silently until real audio is dropped in. Replace
+  # the files in place (same names) to enable sound; no code change needed.
+  assets:
+    - assets/sounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

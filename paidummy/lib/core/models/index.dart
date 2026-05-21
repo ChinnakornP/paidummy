@@ -4,5 +4,6 @@ library;
 
 export 'game.dart';
 export 'guest.dart';
+export 'mission.dart';
 export 'room.dart';
 export 'shop.dart';

@@ -62,3 +62,11 @@ final leaderboardProvider = FutureProvider.autoDispose
   if (g == null) return const [];
   return ref.read(apiClientProvider).leaderboard(g.token, period: period);
 });
+
+/// Today's daily missions for the signed-in guest.
+final missionsProvider =
+    FutureProvider.autoDispose<List<MissionStatus>>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).missions(g.token);
+});

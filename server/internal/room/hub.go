@@ -899,10 +899,35 @@ func (r *Room) finishRound(ctx context.Context) {
 	_ = r.hub.db.SaveRound(ctx, mid, roundNo, seed, reason, knocker, scores)
 	r.broadcast("round_result", resultPayload)
 
+	// Daily-mission: a knock this round counts toward the knocker's
+	// "น็อค N ครั้ง" mission. Best-effort; never blocks the result flow.
+	if reason == "knock" && knocker != nil {
+		_ = r.hub.db.IncrementMissions(ctx, *knocker, db.MissionKnock, 1)
+	}
+
 	if reached {
 		wg, _ := uuid.Parse(winnerGuest)
 		_ = r.hub.db.FinishMatch(ctx, mid, wg)
 		_ = r.hub.store.ClearGame(ctx, mid.String())
+
+		// Daily-mission: every seated player completed a match ("เล่น N
+		// ตา"); the winner also gets a "ชนะ N ตา" credit. Best-effort.
+		r.mu.Lock()
+		missionSeats := make([]string, 0, len(r.seats))
+		for _, s := range r.seats {
+			missionSeats = append(missionSeats, s.GuestID)
+		}
+		r.mu.Unlock()
+		for _, gid := range missionSeats {
+			id, e := uuid.Parse(gid)
+			if e != nil {
+				continue
+			}
+			_ = r.hub.db.IncrementMissions(ctx, id, db.MissionPlay, 1)
+			if gid == winnerGuest {
+				_ = r.hub.db.IncrementMissions(ctx, id, db.MissionWin, 1)
+			}
+		}
 
 		// Coin settlement: every loser pays the bet to the winner.
 		r.mu.Lock()

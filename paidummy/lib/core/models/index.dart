@@ -2,6 +2,7 @@
 /// wire model in one line.
 library;
 
+export 'friend.dart';
 export 'game.dart';
 export 'guest.dart';
 export 'mission.dart';

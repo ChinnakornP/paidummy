@@ -70,3 +70,18 @@ final missionsProvider =
   if (g == null) return const [];
   return ref.read(apiClientProvider).missions(g.token);
 });
+
+/// The signed-in guest's accepted friends.
+final friendsProvider = FutureProvider.autoDispose<List<Friend>>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).friends(g.token);
+});
+
+/// Incoming pending friend requests.
+final friendRequestsProvider =
+    FutureProvider.autoDispose<List<Friend>>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return const [];
+  return ref.read(apiClientProvider).friendRequests(g.token);
+});

@@ -7,6 +7,7 @@ import (
 	"github.com/andaseacode/paidummy-server/internal/db"
 	"github.com/andaseacode/paidummy-server/internal/session"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // guestFromCtx reads the guest the httpapi auth middleware stored under "guest".
@@ -471,6 +472,97 @@ func DailyClaimHandler(database *db.DB) gin.HandlerFunc {
 			"coins_added": added,
 			"new_balance": bal,
 		})
+	}
+}
+
+// FriendsHandler GET /api/v1/me/friends — accepted friends.
+func FriendsHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		fs, err := database.Friends(c.Request.Context(), g.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "friends failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"friends": fs})
+	}
+}
+
+// FriendRequestsHandler GET /api/v1/me/friends/requests — incoming pending.
+func FriendRequestsHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		rs, err := database.IncomingRequests(c.Request.Context(), g.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "requests failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"requests": rs})
+	}
+}
+
+// FriendRequestHandler POST /api/v1/me/friends/request {"ref_code": "..."}
+func FriendRequestHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			RefCode string `json:"ref_code"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		auto, err := database.SendFriendRequest(c.Request.Context(), g.ID, req.RefCode)
+		if err != nil {
+			switch {
+			case errors.Is(err, db.ErrFriendNotFound):
+				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			case errors.Is(err, db.ErrFriendSelf), errors.Is(err, db.ErrAlreadyFriends):
+				c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "request failed"})
+			}
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"auto_accepted": auto})
+	}
+}
+
+// FriendAcceptHandler POST /api/v1/me/friends/accept {"from_id": "..."}
+func FriendAcceptHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		var req struct {
+			FromID string `json:"from_id"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		from, perr := uuid.Parse(req.FromID)
+		if perr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad from_id"})
+			return
+		}
+		if err := database.AcceptFriendRequest(c.Request.Context(), g.ID, from); err != nil {
+			if errors.Is(err, db.ErrFriendNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "accept failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
 

@@ -61,6 +61,11 @@ func main() {
 		Avatar:       room.AvatarHandler(database),
 		Missions:     room.MissionsHandler(database),
 		MissionClaim: room.ClaimMissionHandler(database),
+
+		Friends:        room.FriendsHandler(database),
+		FriendRequests: room.FriendRequestsHandler(database),
+		FriendRequest:  room.FriendRequestHandler(database),
+		FriendAccept:   room.FriendAcceptHandler(database),
 	}
 
 	httpServer := &http.Server{

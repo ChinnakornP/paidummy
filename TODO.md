@@ -30,7 +30,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | # | Feature | Why | Effort |
 | --- | --- | --- | --- |
 | ✅ 1.1 | In-room text chat + emoji react | Decorative chat button already in `_ChatButton`; server routes per-room broadcasts — needs only a `"chat"` WS message + a panel. | S |
-| 1.2 | Friend list + private invite | Quickplay finds strangers; friends finish more rounds together. New `friends` / `invites` DB tables + REST + lobby sheet. | M |
+| ✅ 1.2 | Friend list + private invite | Quickplay finds strangers; friends finish more rounds together. New `friends` / `invites` DB tables + REST + lobby sheet. (Add-by-ref-code + requests/accept + friends list; invite = share private room code.) | M |
 | ✅ 1.3 | Private / password rooms | Hosting a session for a specific group. Add `password` to room create; gate Join. | S |
 | ✅ 1.4 | Spectator mode | View-only seat. Reuse `room_state` but with `your_hand: []`; gate action handlers. | M |
 | ✅ 1.5 | Player profile screen | Tap any seat → stats, history, rank. Pure read-side; reuses `MeHandler` + `MatchHistory`. | S |

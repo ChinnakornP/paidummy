@@ -2,6 +2,7 @@ library;
 
 export 'custom_room_sheet.dart';
 export 'daily_bonus_button.dart';
+export 'friends_sheet.dart';
 export 'join_by_code_dialog.dart';
 export 'leaderboard_sheet.dart';
 export 'lobby_top_bar.dart';

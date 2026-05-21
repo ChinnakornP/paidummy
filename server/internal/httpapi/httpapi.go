@@ -50,6 +50,11 @@ type Server struct {
 
 	Missions     gin.HandlerFunc // GET  /api/v1/me/missions
 	MissionClaim gin.HandlerFunc // POST /api/v1/me/missions/:id/claim
+
+	Friends        gin.HandlerFunc // GET  /api/v1/me/friends
+	FriendRequests gin.HandlerFunc // GET  /api/v1/me/friends/requests
+	FriendRequest  gin.HandlerFunc // POST /api/v1/me/friends/request
+	FriendAccept   gin.HandlerFunc // POST /api/v1/me/friends/accept
 }
 
 const ctxGuestKey = "guest"
@@ -114,6 +119,18 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.MissionClaim != nil {
 			auth.POST("/me/missions/:id/claim", s.MissionClaim)
+		}
+		if s.Friends != nil {
+			auth.GET("/me/friends", s.Friends)
+		}
+		if s.FriendRequests != nil {
+			auth.GET("/me/friends/requests", s.FriendRequests)
+		}
+		if s.FriendRequest != nil {
+			auth.POST("/me/friends/request", s.FriendRequest)
+		}
+		if s.FriendAccept != nil {
+			auth.POST("/me/friends/accept", s.FriendAccept)
 		}
 	}
 

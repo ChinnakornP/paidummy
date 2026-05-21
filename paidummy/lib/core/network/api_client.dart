@@ -274,6 +274,63 @@ class ApiClient {
     }
   }
 
+  /// Accepted friends.
+  Future<List<Friend>> friends(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/me/friends'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['friends'] as List?) ?? const [])
+        .map((e) => Friend.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Incoming pending friend requests.
+  Future<List<Friend>> friendRequests(String token) async {
+    final r = await _c.get(
+      _u('/api/v1/me/friends/requests'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return ((j['requests'] as List?) ?? const [])
+        .map((e) => Friend.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Sends (or auto-accepts) a friend request by the target's ref code.
+  Future<bool> sendFriendRequest(String token, String refCode) async {
+    final r = await _c.post(
+      _u('/api/v1/me/friends/request'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'ref_code': refCode}),
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'request failed');
+    }
+    return j['auto_accepted'] as bool? ?? false;
+  }
+
+  /// Accepts a pending request from [fromId].
+  Future<void> acceptFriend(String token, String fromId) async {
+    final r = await _c.post(
+      _u('/api/v1/me/friends/accept'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'from_id': fromId}),
+    );
+    if (r.statusCode >= 300) {
+      final j = jsonDecode(r.body) as Map<String, dynamic>;
+      throw Exception((j['error'] as String?) ?? 'accept failed');
+    }
+  }
+
   /// Today's daily missions with the caller's progress.
   Future<List<MissionStatus>> missions(String token) async {
     final r = await _c.get(

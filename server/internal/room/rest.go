@@ -705,6 +705,45 @@ func FriendAcceptHandler(database *db.DB) gin.HandlerFunc {
 	}
 }
 
+// AdStatusHandler GET /api/v1/me/ad — rewarded-ad availability + cooldown.
+func AdStatusHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		st, err := database.AdStatus(c.Request.Context(), g.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "ad status failed"})
+			return
+		}
+		c.JSON(http.StatusOK, st)
+	}
+}
+
+// AdClaimHandler POST /api/v1/me/ad/claim — credits the mock rewarded-ad
+// bonus. 429 while on cooldown.
+func AdClaimHandler(database *db.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		g, ok := guestFromCtx(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "no session"})
+			return
+		}
+		added, bal, err := database.ClaimAd(c.Request.Context(), g.ID)
+		if err != nil {
+			if errors.Is(err, db.ErrAdCooldown) {
+				c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "claim failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"coins_added": added, "new_balance": bal})
+	}
+}
+
 // MissionsHandler GET /api/v1/me/missions — today's daily missions with
 // the caller's progress + claim state.
 func MissionsHandler(database *db.DB) gin.HandlerFunc {

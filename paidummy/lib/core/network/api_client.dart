@@ -274,6 +274,42 @@ class ApiClient {
     }
   }
 
+  /// Rewarded-ad status — whether a (mock) ad reward is claimable now and
+  /// the next claim time.
+  Future<({bool available, int reward, int? nextClaimMs})> adStatus(
+    String token,
+  ) async {
+    final r = await _c.get(
+      _u('/api/v1/me/ad'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    final next = j['next_claim'] as String?;
+    return (
+      available: j['available'] as bool? ?? false,
+      reward: (j['reward'] as num?)?.toInt() ?? 0,
+      nextClaimMs: next == null
+          ? null
+          : DateTime.tryParse(next)?.millisecondsSinceEpoch,
+    );
+  }
+
+  /// Claims the mock rewarded-ad bonus. Throws on cooldown (429).
+  Future<({int coinsAdded, int newBalance})> claimAd(String token) async {
+    final r = await _c.post(
+      _u('/api/v1/me/ad/claim'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode >= 300) {
+      throw Exception((j['error'] as String?) ?? 'ad claim failed');
+    }
+    return (
+      coinsAdded: (j['coins_added'] as num).toInt(),
+      newBalance: (j['new_balance'] as num).toInt(),
+    );
+  }
+
   /// Reports another player. [reason] is free text (capped server-side).
   Future<void> reportPlayer(
     String token,

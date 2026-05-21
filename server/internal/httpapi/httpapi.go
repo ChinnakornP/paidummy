@@ -58,6 +58,8 @@ type Server struct {
 	FriendRequest  gin.HandlerFunc // POST /api/v1/me/friends/request
 	FriendAccept   gin.HandlerFunc // POST /api/v1/me/friends/accept
 
+	AdStatus      gin.HandlerFunc // GET  /api/v1/me/ad
+	AdClaim       gin.HandlerFunc // POST /api/v1/me/ad/claim
 	Report        gin.HandlerFunc // POST /api/v1/reports
 	AdminBan      gin.HandlerFunc // POST /api/v1/admin/ban
 	AdminReports  gin.HandlerFunc // GET  /api/v1/admin/reports
@@ -142,6 +144,12 @@ func (s *Server) Router() *gin.Engine {
 		}
 		if s.Report != nil {
 			auth.POST("/reports", s.Report)
+		}
+		if s.AdStatus != nil {
+			auth.GET("/me/ad", s.AdStatus)
+		}
+		if s.AdClaim != nil {
+			auth.POST("/me/ad/claim", s.AdClaim)
 		}
 	}
 

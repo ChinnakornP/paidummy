@@ -71,6 +71,14 @@ final missionsProvider =
   return ref.read(apiClientProvider).missions(g.token);
 });
 
+/// Rewarded-ad availability for the signed-in guest.
+final adStatusProvider = FutureProvider.autoDispose<
+    ({bool available, int reward, int? nextClaimMs})?>((ref) async {
+  final g = ref.watch(sessionProvider);
+  if (g == null) return null;
+  return ref.read(apiClientProvider).adStatus(g.token);
+});
+
 /// The signed-in guest's accepted friends.
 final friendsProvider = FutureProvider.autoDispose<List<Friend>>((ref) async {
   final g = ref.watch(sessionProvider);

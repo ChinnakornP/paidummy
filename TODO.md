@@ -52,7 +52,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | ✅ 3.1 | Reconnect mid-round | Network drops happen. Server already persists state in Redis; needs a client "reconnecting…" overlay + auto-resume. | M |
 | ✅ 3.2 | Disconnect protection (bot takeover) | Today the shot clock auto-discards once but the seat keeps stalling. A "play out as bot" toggle smooths real games. | S |
 | 3.3 | Replay / move log viewer | Stored event stream per match (already partly in `db.SaveRound`). Add a scrubbable viewer dialog. | L |
-| 3.4 | Report player + admin tools | One report button per seat + a small admin endpoint to mute/ban. | M |
+| ✅ 3.4 | Report player + admin tools | One report button per seat + a small admin endpoint to mute/ban. | M |
 | 3.5 | Anti-collusion heuristics | Background job tracking suspicious patterns (always loses to same player, always picks dummy from same player). | L |
 
 ## 4. Audio / visual / "feel"
@@ -84,7 +84,7 @@ inside each theme. Effort scale: **XS** ≈ <½ day · **S** ≈ 1–2 days ·
 | 6.2 | English (and other Thai dialect) localisation | Broader audience. `intl` package, `arb` files. Strings already centralised in `ui.dart`. | M |
 | 6.3 | Real payment integration (replace mock) | Shop is mock today. PromptPay / TrueMoney / Apple-Google IAP. `PurchasePackage` already exists — wire a provider behind it. | L |
 | 6.4 | Crash reporting + analytics | Sentry/Crashlytics + a small event pipeline (action counts, funnel drop-offs). | S |
-| 6.5 | Admin dashboard | Read-only web view of rooms, player counts, recent rounds, support tickets. | M |
+| ✅ 6.5 | Admin dashboard | Read-only web view of rooms, player counts, recent rounds, support tickets. | M |
 
 ## 7. Long-shot / strategic
 

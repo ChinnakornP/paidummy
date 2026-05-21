@@ -11,6 +11,54 @@ import '../../core/models/index.dart';
 import '../../core/providers/index.dart';
 import 'widgets/package_card.dart';
 
+/// "ดูโฆษณารับเหรียญ" rewarded-ad button (mock — no real ad SDK). Disabled
+/// while on cooldown.
+class _WatchAdButton extends ConsumerWidget {
+  const _WatchAdButton();
+
+  Future<void> _watch(BuildContext context, WidgetRef ref) async {
+    final g = ref.read(sessionProvider);
+    if (g == null) return;
+    try {
+      final r = await ref.read(apiClientProvider).claimAd(g.token);
+      ref.invalidate(meProvider);
+      ref.invalidate(adStatusProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF3E8A25),
+          content: Text('ดูโฆษณาจบ — รับ +${r.coinsAdded} 🪙'),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ยังรับไม่ได้: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(adStatusProvider).value;
+    final available = st?.available ?? false;
+    final reward = st?.reward ?? 0;
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: available ? () => _watch(context, ref) : null,
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF3C7A8C),
+        ),
+        icon: const Icon(Icons.ondemand_video),
+        label: Text(
+          available ? 'ดูโฆษณารับ +$reward 🪙' : 'รับโฆษณาแล้ว — รออีกครู่',
+        ),
+      ),
+    );
+  }
+}
+
 /// Opens the coin-shop bottom sheet. Used by the lobby 🛒 icon and the in-game
 /// shop button.
 Future<void> showShopSheet(BuildContext context) {
@@ -100,6 +148,10 @@ class _ShopSheetState extends ConsumerState<ShopSheet> {
                   style: TextStyle(color: Colors.white60, fontSize: 12),
                 ),
               ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 4, 8, 4),
+              child: _WatchAdButton(),
             ),
             Flexible(
               child: packages.when(

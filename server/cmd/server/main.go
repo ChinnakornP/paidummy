@@ -68,6 +68,8 @@ func main() {
 		FriendRequest:  room.FriendRequestHandler(database),
 		FriendAccept:   room.FriendAcceptHandler(database),
 
+		AdStatus:     room.AdStatusHandler(database),
+		AdClaim:      room.AdClaimHandler(database),
 		Report:       room.ReportHandler(database),
 		AdminBan:     room.AdminBanHandler(database),
 		AdminReports: room.AdminReportsHandler(database),
